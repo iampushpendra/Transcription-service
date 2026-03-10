@@ -1,0 +1,14 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+preprocessed.wav
+_tmp_convert.wav
+transcript_output.json
+*.egg-info/
+outputs/
+.vscode/
+results/
+trimmed_test.mp3
+
+

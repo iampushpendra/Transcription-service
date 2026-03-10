@@ -1,0 +1,22 @@
+[project]
+name = "speech-transcription-pipeline"
+version = "1.0.0"
+description = "Speech transcription pipeline for Indian sales calls"
+requires-python = ">=3.10"
+
+[build-system]
+requires = ["setuptools>=68.0"]
+build-backend = "setuptools.build_meta"
+
+[tool.setuptools.packages.find]
+include = ["pipeline*"]
+
+[tool.pyright]
+pythonVersion = "3.13"
+venvPath = "."
+venv = ".venv"
+extraPaths = ["."]
+
+[tool.pyre]
+search_path = ["."]
+source_directories = ["."]

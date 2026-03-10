@@ -1,0 +1,2655 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>FREED AI | Transcription Dashboard</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&display=swap"
+        rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <style>
+        :root {
+            --bg: #09090b;
+            --surface: rgba(24, 24, 27, 0.6);
+            --surface-hover: rgba(39, 39, 42, 0.8);
+            --border: rgba(255, 255, 255, 0.08);
+            --border-hover: rgba(255, 255, 255, 0.15);
+            --primary: #8b5cf6;
+            --primary-glow: rgba(139, 92, 246, 0.3);
+            --accent: #38bdf8;
+            --text: #f4f4f5;
+            --text-muted: #a1a1aa;
+            --agent-color: #6ee7b7;
+            --customer-color: #fca5a5;
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', sans-serif;
+            background-color: var(--bg);
+            color: var(--text);
+            min-height: 100vh;
+            display: flex;
+            overflow: hidden;
+        }
+
+        /* Ambient animated blobs */
+        .blob {
+            position: fixed;
+            border-radius: 50%;
+            filter: blur(100px);
+            z-index: 0;
+            opacity: 0.4;
+            animation: float 20s infinite alternate ease-in-out;
+            pointer-events: none;
+        }
+
+        .blob-1 {
+            top: -100px;
+            left: -100px;
+            width: 500px;
+            height: 500px;
+            background: rgba(139, 92, 246, 0.2);
+        }
+
+        .blob-2 {
+            bottom: -100px;
+            right: -100px;
+            width: 600px;
+            height: 600px;
+            background: rgba(56, 189, 248, 0.15);
+            animation-delay: -5s;
+        }
+
+        @keyframes float {
+            0% {
+                transform: translate(0, 0) scale(1);
+            }
+
+            100% {
+                transform: translate(40px, -40px) scale(1.1);
+            }
+        }
+
+        /* Sidebar Navigation */
+        .sidebar {
+            width: 280px;
+            background: rgba(15, 15, 20, 0.8);
+            backdrop-filter: blur(20px);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            padding: 30px 20px;
+            z-index: 10;
+        }
+
+        .brand {
+            font-family: 'Outfit', sans-serif;
+            font-size: 2rem;
+            font-weight: 800;
+            background: linear-gradient(135deg, #fff 0%, #a1a1aa 100%);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            margin-bottom: 40px;
+            padding-left: 10px;
+        }
+
+        .nav-item {
+            padding: 14px 20px;
+            border-radius: 12px;
+            color: var(--text-muted);
+            font-weight: 500;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            margin-bottom: 10px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }
+
+        .nav-item:hover {
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text);
+        }
+
+        .nav-item.active {
+            background: var(--primary-glow);
+            color: #fff;
+            border: 1px solid rgba(139, 92, 246, 0.5);
+        }
+
+        /* Main Content Area */
+        .main-content {
+            flex-grow: 1;
+            position: relative;
+            z-index: 1;
+            height: 100vh;
+            overflow-y: auto;
+            padding: 40px;
+            display: flex;
+            flex-direction: column;
+        }
+
+        h2.section-title {
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+            font-size: 2rem;
+            margin-bottom: 30px;
+            color: #fff;
+        }
+
+        .view-section {
+            display: none;
+            animation: fadeIn 0.4s ease;
+        }
+
+        .view-section.active {
+            display: block;
+        }
+
+        @keyframes fadeIn {
+            from {
+                opacity: 0;
+                transform: translateY(10px);
+            }
+
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        /* Overview Landing Page Styles */
+        .kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(155px, 1fr));
+            gap: 16px;
+            margin-bottom: 36px;
+        }
+
+        .kpi-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 14px;
+            padding: 18px 16px;
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+            transition: border-color 0.2s, box-shadow 0.2s;
+        }
+
+        .kpi-card:hover {
+            border-color: var(--border-hover);
+            box-shadow: 0 4px 20px rgba(139, 92, 246, 0.08);
+        }
+
+        .kpi-label {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            line-height: 1.3;
+        }
+
+        .kpi-val {
+            font-size: clamp(1.3rem, 2vw, 2rem);
+            font-family: 'Outfit';
+            font-weight: 600;
+            color: #fff;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+        }
+
+        .charts-container {
+            display: grid;
+            grid-template-columns: 2fr 1fr;
+            gap: 24px;
+            margin-bottom: 40px;
+        }
+
+        .chart-box {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+        }
+
+        .chart-box h3 {
+            font-family: 'Outfit';
+            font-size: 1.1rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            margin-bottom: 20px;
+        }
+
+        /* Common Elements */
+        .btn {
+            background: var(--primary);
+            color: #fff;
+            border: none;
+            padding: 12px 28px;
+            font-family: 'Outfit', sans-serif;
+            font-weight: 600;
+            font-size: 1.1rem;
+            border-radius: 10px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+        }
+
+        .btn:hover {
+            background: #9333ea;
+            transform: translateY(-2px);
+        }
+
+        .btn-secondary {
+            background: rgba(255, 255, 255, 0.1);
+            box-shadow: none;
+            border: 1px solid var(--border);
+        }
+
+        .btn-secondary:hover {
+            background: rgba(255, 255, 255, 0.15);
+        }
+
+        /* Custom Scrollbar */
+        ::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        ::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        ::-webkit-scrollbar-thumb {
+            background: var(--border-hover);
+            border-radius: 10px;
+        }
+
+        /* Upload UI specifics */
+        .upload-card {
+            background: var(--surface);
+            border: 1px dashed var(--border-hover);
+            border-radius: 20px;
+            padding: 60px 40px;
+            text-align: center;
+            max-width: 700px;
+            margin: 40px auto;
+            transition: all 0.3s ease;
+        }
+
+        .upload-card.dragover {
+            border-color: var(--primary);
+            background: rgba(139, 92, 246, 0.05);
+            transform: scale(1.02);
+        }
+
+        .progress-container {
+            max-width: 600px;
+            margin: 40px auto;
+            text-align: center;
+        }
+
+        .progress-bar-track {
+            width: 100%;
+            height: 6px;
+            background: var(--border);
+            border-radius: 10px;
+            overflow: hidden;
+            margin-top: 20px;
+            position: relative;
+        }
+
+        .progress-bar-fill {
+            height: 100%;
+            width: 30%;
+            background: linear-gradient(90deg, var(--primary), var(--accent));
+            border-radius: 10px;
+            animation: indeterminate 1.5s infinite linear;
+        }
+
+        @keyframes indeterminate {
+            0% {
+                transform: translateX(-100%);
+                width: 30%;
+            }
+
+            100% {
+                transform: translateX(300%);
+                width: 30%;
+            }
+        }
+
+        /* History & Dashboard (from previous phase) */
+        .history-grid {
+            display: grid;
+            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
+            gap: 20px;
+        }
+
+        .history-card {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            padding: 24px;
+            cursor: pointer;
+            transition: all 0.2s ease;
+        }
+
+        .history-card:hover {
+            border-color: var(--primary);
+            background: var(--surface-hover);
+            transform: translateY(-2px);
+        }
+
+        .history-card .date {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+        }
+
+        .history-card .filename {
+            font-weight: 600;
+            font-size: 1.1rem;
+            color: #fff;
+            margin-bottom: 12px;
+            word-break: break-all;
+        }
+
+        .history-card .badges {
+            display: flex;
+            gap: 8px;
+        }
+
+        .badge {
+            padding: 4px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 500;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid var(--border);
+        }
+
+        /* Original ↔ Rephrased toggle button */
+        .toggle-rephrase-btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            padding: 4px 12px;
+            border-radius: 20px;
+            font-size: 0.75rem;
+            font-weight: 600;
+            cursor: pointer;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.05);
+            color: var(--text-muted);
+            transition: all 0.3s ease;
+            white-space: nowrap;
+        }
+
+        .toggle-rephrase-btn:hover {
+            background: rgba(255, 255, 255, 0.1);
+            border-color: var(--primary);
+        }
+
+        .toggle-rephrase-btn.active {
+            background: linear-gradient(135deg, rgba(139, 92, 246, 0.25), rgba(59, 130, 246, 0.25));
+            border-color: var(--primary);
+            color: #e0e0e0;
+        }
+
+        .toggle-rephrase-btn .toggle-icon {
+            font-size: 0.85rem;
+        }
+
+        @keyframes seg-flash {
+            0% {
+                background: rgba(234, 179, 8, 0.15);
+            }
+
+            100% {
+                background: transparent;
+            }
+        }
+
+        .seg-changed {
+            animation: seg-flash 1.2s ease-out;
+        }
+
+        /* Emotion & Escalation Analysis Panel */
+        .emotion-panel {
+            margin-top: 16px;
+            border-radius: 12px;
+            border: 1px solid var(--border);
+            background: var(--glass);
+            padding: 0;
+            overflow: hidden;
+        }
+
+        .emotion-panel-header {
+            padding: 14px 20px;
+            font-size: 1.05rem;
+            font-weight: 600;
+            color: #e0e0e0;
+            background: rgba(255, 255, 255, 0.02);
+            border-bottom: 1px solid var(--border);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+
+        .emotion-kpi-grid {
+            display: grid;
+            grid-template-columns: repeat(4, 1fr);
+            gap: 12px;
+            padding: 16px 20px;
+        }
+
+        .emotion-kpi {
+            text-align: center;
+            padding: 12px 8px;
+            border-radius: 10px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+        }
+
+        .emotion-kpi .kpi-value {
+            font-size: 1.3rem;
+            font-weight: 700;
+        }
+
+        .emotion-kpi .kpi-label {
+            font-size: 0.72rem;
+            color: var(--text-muted);
+            margin-top: 4px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .heated-segment-entry {
+            padding: 10px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+            font-size: 0.85rem;
+            display: flex;
+            gap: 10px;
+            align-items: flex-start;
+        }
+
+        .heated-segment-entry:last-child {
+            border-bottom: none;
+        }
+
+        .heated-tag {
+            flex-shrink: 0;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            text-transform: uppercase;
+        }
+
+        .heated-tag.agent {
+            background: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+        }
+
+        .heated-tag.customer {
+            background: rgba(251, 146, 60, 0.15);
+            color: #fb923c;
+        }
+
+        .heated-ts {
+            color: var(--text-muted);
+            font-size: 0.78rem;
+            flex-shrink: 0;
+            min-width: 55px;
+        }
+
+        .heated-text {
+            color: #d4d4d4;
+            flex: 1;
+        }
+
+        .trigger-section {
+            padding: 12px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .trigger-section-title {
+            font-size: 0.82rem;
+            font-weight: 600;
+            color: var(--text-muted);
+            margin-bottom: 8px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+
+        .trigger-pill {
+            display: inline-block;
+            padding: 4px 10px;
+            margin: 3px 4px 3px 0;
+            border-radius: 16px;
+            font-size: 0.78rem;
+            border: 1px solid var(--border);
+            background: rgba(255, 255, 255, 0.04);
+            color: #d4d4d4;
+        }
+
+        .trigger-pill.negative {
+            border-color: rgba(239, 68, 68, 0.3);
+            background: rgba(239, 68, 68, 0.08);
+        }
+
+        .trigger-pill.positive {
+            border-color: rgba(34, 197, 94, 0.3);
+            background: rgba(34, 197, 94, 0.08);
+        }
+
+        .trigger-pill.hesitation {
+            border-color: rgba(234, 179, 8, 0.3);
+            background: rgba(234, 179, 8, 0.08);
+        }
+
+        .trigger-entry {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            padding: 6px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.03);
+            font-size: 0.82rem;
+        }
+
+        .trigger-entry:last-child {
+            border-bottom: none;
+        }
+
+        .trigger-ts {
+            flex-shrink: 0;
+            color: var(--accent);
+            font-family: 'SF Mono', 'Fira Code', monospace;
+            font-size: 0.75rem;
+            min-width: 50px;
+            padding-top: 1px;
+        }
+
+        .trigger-speaker {
+            flex-shrink: 0;
+            font-size: 0.68rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            padding: 2px 6px;
+            border-radius: 4px;
+            min-width: 55px;
+            text-align: center;
+            background: rgba(255, 255, 255, 0.06);
+            color: var(--text-muted);
+        }
+
+        .trigger-text {
+            flex: 1;
+            color: #d4d4d4;
+            line-height: 1.4;
+        }
+
+        .match-badge {
+            flex-shrink: 0;
+            font-size: 0.68rem;
+            padding: 2px 8px;
+            border-radius: 10px;
+            background: rgba(139, 92, 246, 0.15);
+            color: #a78bfa;
+            border: 1px solid rgba(139, 92, 246, 0.25);
+            font-weight: 500;
+        }
+
+        .trigger-entry.negative .trigger-speaker {
+            background: rgba(239, 68, 68, 0.1);
+            color: #f87171;
+        }
+
+        .trigger-entry.positive .trigger-speaker {
+            background: rgba(34, 197, 94, 0.1);
+            color: #4ade80;
+        }
+
+        .trigger-entry.hesitation .trigger-speaker {
+            background: rgba(234, 179, 8, 0.1);
+            color: #fbbf24;
+        }
+
+        .insight-entry {
+            padding: 8px 0;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .insight-entry:last-child {
+            border-bottom: none;
+        }
+
+        .insight-header {
+            display: flex;
+            align-items: flex-start;
+            gap: 8px;
+            font-size: 0.82rem;
+        }
+
+        .insight-text {
+            flex: 1;
+            color: #e5e5e5;
+            font-weight: 500;
+            line-height: 1.4;
+        }
+
+        .insight-quote {
+            margin: 4px 0 2px 58px;
+            padding: 4px 10px;
+            border-left: 2px solid rgba(139, 92, 246, 0.4);
+            font-size: 0.76rem;
+            color: #a3a3a3;
+            font-style: italic;
+            line-height: 1.4;
+        }
+
+        /* ── Emotion Timeline (Phase 30) ── */
+        .timeline-row {
+            display: flex;
+            align-items: center;
+            padding: 4px 20px;
+            gap: 8px;
+        }
+
+        .timeline-label {
+            flex-shrink: 0;
+            width: 75px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            text-transform: uppercase;
+            color: var(--text-muted);
+        }
+
+        .timeline-bar-container {
+            flex: 1;
+            display: flex;
+            height: 22px;
+            border-radius: 4px;
+            overflow: hidden;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+        }
+
+        .timeline-segment {
+            height: 100%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 0.6rem;
+            font-weight: 600;
+            color: rgba(255, 255, 255, 0.85);
+            min-width: 2px;
+            transition: opacity 0.2s;
+            cursor: default;
+            position: relative;
+        }
+
+        .timeline-segment:hover {
+            opacity: 0.8;
+        }
+
+        .timeline-segment[data-emotion="calm"] {
+            background: #3b82f6;
+        }
+
+        .timeline-segment[data-emotion="engaged"] {
+            background: #22c55e;
+        }
+
+        .timeline-segment[data-emotion="hesitant"] {
+            background: #eab308;
+        }
+
+        .timeline-segment[data-emotion="frustrated"] {
+            background: #f97316;
+        }
+
+        .timeline-segment[data-emotion="angry"] {
+            background: #ef4444;
+        }
+
+        .timeline-segment[data-emotion="confused"] {
+            background: #a855f7;
+        }
+
+        .timeline-legend {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 12px;
+            padding: 8px 20px 12px;
+        }
+
+        .timeline-legend-item {
+            display: flex;
+            align-items: center;
+            gap: 4px;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+        }
+
+        .timeline-legend-dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 3px;
+        }
+
+        .emotion-metrics-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 10px;
+            padding: 12px 20px;
+        }
+
+        .emotion-metric-card {
+            text-align: center;
+            padding: 10px 6px;
+            border-radius: 8px;
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+        }
+
+        .emotion-metric-card .metric-value {
+            font-size: 1.1rem;
+            font-weight: 700;
+        }
+
+        .emotion-metric-card .metric-label {
+            font-size: 0.68rem;
+            color: var(--text-muted);
+            margin-top: 3px;
+            text-transform: uppercase;
+            letter-spacing: 0.4px;
+        }
+
+        /* ── Sarcasm Panel (Phase 30) ── */
+        .sarcasm-entry {
+            padding: 10px 20px;
+            border-bottom: 1px solid rgba(255, 255, 255, 0.04);
+        }
+
+        .sarcasm-entry:last-child {
+            border-bottom: none;
+        }
+
+        .sarcasm-header {
+            display: flex;
+            gap: 8px;
+            align-items: center;
+            margin-bottom: 4px;
+        }
+
+        .sarcasm-phrase {
+            font-style: italic;
+            font-size: 0.85rem;
+            color: #e0e0e0;
+            margin: 4px 0 6px 58px;
+            padding: 4px 10px;
+            border-left: 2px solid rgba(251, 146, 60, 0.4);
+        }
+
+        .sarcasm-signals {
+            display: flex;
+            gap: 10px;
+            margin-left: 58px;
+            font-size: 0.72rem;
+        }
+
+        .sarcasm-signal {
+            padding: 2px 8px;
+            border-radius: 6px;
+            background: rgba(255, 255, 255, 0.05);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+        }
+
+        .sarcasm-confidence {
+            display: inline-block;
+            padding: 2px 8px;
+            border-radius: 6px;
+            font-size: 0.7rem;
+            font-weight: 600;
+            background: rgba(251, 146, 60, 0.15);
+            color: #fb923c;
+        }
+
+
+        .heated-marker {
+            display: inline-block;
+            font-size: 0.6rem;
+            margin-left: 4px;
+            vertical-align: middle;
+        }
+
+        .dashboard-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 30px;
+            height: calc(100vh - 120px);
+        }
+
+        .panel {
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            display: flex;
+            flex-direction: column;
+            overflow: hidden;
+        }
+
+        .panel-header {
+            padding: 20px 24px;
+            border-bottom: 1px solid var(--border);
+            background: rgba(0, 0, 0, 0.2);
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .panel-header h3 {
+            font-family: 'Outfit';
+            font-size: 1.3rem;
+            font-weight: 600;
+        }
+
+        .panel-content {
+            padding: 24px;
+            overflow-y: auto;
+            flex-grow: 1;
+        }
+
+        .message {
+            margin-bottom: 20px;
+            line-height: 1.6;
+        }
+
+        .message-header {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            margin-bottom: 6px;
+        }
+
+        .spk-tag {
+            font-size: 0.75rem;
+            font-weight: 600;
+            padding: 4px 8px;
+            border-radius: 4px;
+            letter-spacing: 0.5px;
+        }
+
+        .spk-time {
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            font-family: monospace;
+        }
+
+        .spk-text {
+            color: #e4e4e7;
+            font-size: 0.95rem;
+        }
+
+        .msg-agent .spk-tag {
+            background: rgba(110, 231, 183, 0.15);
+            color: var(--agent-color);
+        }
+
+        .msg-customer .spk-tag {
+            background: rgba(252, 165, 165, 0.15);
+            color: var(--customer-color);
+        }
+
+        .msg-unknown .spk-tag {
+            background: rgba(161, 161, 170, 0.15);
+            color: var(--text-muted);
+        }
+
+        .metric-group {
+            margin-bottom: 30px;
+            border: 1px solid var(--border);
+            border-radius: 16px;
+            overflow: hidden;
+        }
+
+        .metric-header {
+            background: rgba(139, 92, 246, 0.1);
+            padding: 12px 20px;
+            border-bottom: 1px solid var(--border);
+            color: #d8b4fe;
+            font-weight: 600;
+            font-family: 'Outfit';
+            font-size: 1.1rem;
+        }
+
+        .metric-body {
+            padding: 20px;
+            background: rgba(0, 0, 0, 0.2);
+        }
+
+        .summary-list {
+            list-style-type: none;
+            padding-left: 18px;
+            margin: 12px 0;
+        }
+
+        .summary-list li {
+            position: relative;
+            margin-bottom: 6px;
+            line-height: 1.5;
+            color: #d1d5db;
+        }
+
+        .summary-list li::before {
+            content: "•";
+            position: absolute;
+            left: -16px;
+            color: var(--primary);
+            font-size: 1.2em;
+            top: -2px;
+        }
+
+        .kv-grid {
+            display: grid;
+            grid-template-columns: 1fr;
+            gap: 16px;
+        }
+
+        .kv-item {
+            border-left: 2px solid var(--border-hover);
+            padding-left: 16px;
+        }
+
+        .kv-key {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+            margin-bottom: 4px;
+        }
+
+        .kv-val {
+            font-size: 0.95rem;
+            color: #fff;
+            line-height: 1.5;
+        }
+
+        .meta-stats-grid {
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            gap: 15px;
+            margin-bottom: 30px;
+        }
+
+        .stat-card {
+            background: rgba(255, 255, 255, 0.03);
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            padding: 16px;
+            text-align: center;
+        }
+
+        .meta-stats-collapsible {
+            overflow: hidden;
+            max-height: 0;
+            transition: max-height 0.35s cubic-bezier(0.4, 0, 0.2, 1),
+                opacity 0.3s ease,
+                margin-bottom 0.3s ease;
+            opacity: 0;
+            margin-bottom: 0;
+        }
+
+        .meta-stats-collapsible.is-open {
+            max-height: 200px;
+            opacity: 1;
+            margin-bottom: 20px;
+        }
+
+        .meta-toggle-btn {
+            background: none;
+            border: none;
+            cursor: pointer;
+            padding: 2px 6px;
+            border-radius: 6px;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            transition: color 0.2s, background 0.2s;
+            display: inline-flex;
+            align-items: center;
+            gap: 4px;
+            margin-left: 8px;
+        }
+
+        .meta-toggle-btn:hover {
+            color: var(--primary);
+            background: rgba(139, 92, 246, 0.08);
+        }
+
+        .meta-toggle-btn .chevron {
+            display: inline-block;
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        }
+
+        .meta-toggle-btn.open .chevron {
+            transform: rotate(180deg);
+        }
+
+        .stat-card span {
+            display: block;
+            font-size: 0.7rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            margin-bottom: 6px;
+        }
+
+        .stat-card strong {
+            font-size: 1.2rem;
+            font-family: 'Outfit';
+            color: #fff;
+        }
+
+        /* Custom styling for Chart.js tooltips to match dark theme */
+        canvas {
+            filter: drop-shadow(0px 10px 15px rgba(0, 0, 0, 0.5));
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="blob blob-1"></div>
+    <div class="blob blob-2"></div>
+
+    <!-- Sidebar -->
+    <div class="sidebar">
+        <div class="brand">FREED AI</div>
+
+        <div class="nav-item active" id="nav-overview" onclick="switchView('overview', this)">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6">
+                </path>
+            </svg>
+            Overview
+        </div>
+        <div class="nav-item" id="nav-upload" onclick="switchView('upload', this)">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
+            </svg>
+            New Process
+        </div>
+        <div class="nav-item" id="nav-history" onclick="switchView('history', this);">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
+            </svg>
+            Job History
+        </div>
+    </div>
+
+    <!-- Main Content -->
+    <div class="main-content">
+
+        <!-- View 0: Global Analytics Overview -->
+        <div id="view-overview" class="view-section active">
+            <h2 class="section-title">Global Analytics</h2>
+
+            <div id="overview-loading" style="color: var(--text-muted); margin-bottom: 20px;">Fetching global metrics...
+            </div>
+
+            <div id="overview-content" style="display: none;">
+                <!-- High-level KPIs -->
+                <div class="kpi-grid" style="grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));">
+                    <div class="kpi-card" data-kpi="total-calls" style="cursor: pointer; position: relative;">
+                        <div class="kpi-label">Total Calls Processed</div>
+                        <div class="kpi-val" id="kpi-total-calls">0</div>
+                    </div>
+                    <div class="kpi-card" data-kpi="total-debt" style="cursor: pointer; position: relative;">
+                        <div class="kpi-label">Total Analyzed Debt</div>
+                        <div class="kpi-val" style="color: #6ee7b7;" id="kpi-total-debt">₹0</div>
+                    </div>
+                    <div class="kpi-card" data-kpi="avg-duration" style="cursor: pointer; position: relative;">
+                        <div class="kpi-label">Average Call Duration</div>
+                        <div class="kpi-val" id="kpi-avg-duration">0s</div>
+                    </div>
+                    <div class="kpi-card" data-kpi="high-leads" style="cursor: pointer; position: relative;">
+                        <div class="kpi-label">High Intent Leads</div>
+                        <div class="kpi-val" style="color: #fca5a5;" id="kpi-high-leads">0</div>
+                    </div>
+                    <div class="kpi-card" data-kpi="conversion-rate" style="cursor: pointer; position: relative;">
+                        <div class="kpi-label">Conversion Rate</div>
+                        <div class="kpi-val" style="color: #34d399;" id="kpi-conv-rate">--</div>
+                    </div>
+                    <div class="kpi-card" data-kpi="dropoff-rate" style="cursor: pointer; position: relative;">
+                        <div class="kpi-label">Dropoff Rate</div>
+                        <div class="kpi-val" style="color: #fbbf24;" id="kpi-dropoff-rate">--</div>
+                    </div>
+                    <div class="kpi-card" data-kpi="avg-debt" style="cursor: pointer; position: relative;">
+                        <div class="kpi-label">Avg Debt Per Call</div>
+                        <div class="kpi-val" style="color: #a78bfa;" id="kpi-avg-debt">₹0</div>
+                    </div>
+                </div>
+
+                <!-- Drill-Down Tooltip -->
+                <div id="kpi-tooltip"
+                    style="display:none; position:fixed; z-index:9999; background:rgba(9,9,11,0.95); border:1px solid rgba(255,255,255,0.12); border-radius:12px; padding:16px 20px; max-width:420px; max-height:350px; overflow-y:auto; box-shadow:0 20px 40px rgba(0,0,0,0.5); backdrop-filter:blur(12px); font-size:0.85rem; color:var(--text);">
+                </div>
+
+                <!-- Charts Row 1 -->
+                <div class="charts-container" style="grid-template-columns: 1fr 1fr;">
+                    <div class="chart-box">
+                        <h3>Customer State of Mind</h3>
+                        <div style="position: relative; height: 250px; width: 100%;">
+                            <canvas id="chart-sentiment"></canvas>
+                        </div>
+                        <div id="chart-sentiment-detail"
+                            style="display:none; margin-top:12px; font-size:0.82rem; color:var(--text-muted); max-height:240px; overflow-y:auto;">
+                        </div>
+                    </div>
+                    <div class="chart-box">
+                        <h3>Lead Conversion Probability</h3>
+                        <div style="position: relative; height: 250px; width: 100%;">
+                            <canvas id="chart-probability"></canvas>
+                        </div>
+                        <div id="chart-probability-detail"
+                            style="display:none; margin-top:12px; font-size:0.82rem; color:var(--text-muted); max-height:240px; overflow-y:auto;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Row 2 -->
+                <div class="charts-container" style="grid-template-columns: 1fr 1fr;">
+                    <div class="chart-box">
+                        <h3>Primary Pain Points Identified</h3>
+                        <div style="position: relative; height: 250px; width: 100%;">
+                            <canvas id="chart-painpoints"></canvas>
+                        </div>
+                        <div id="chart-painpoints-detail"
+                            style="display:none; margin-top:12px; font-size:0.82rem; color:var(--text-muted); max-height:240px; overflow-y:auto;">
+                        </div>
+                    </div>
+                    <div class="chart-box">
+                        <h3>Top Keywords &amp; Topics discussed</h3>
+                        <div style="position: relative; height: 250px; width: 100%;">
+                            <canvas id="chart-keywords"></canvas>
+                        </div>
+                        <div id="chart-keywords-detail"
+                            style="display:none; margin-top:12px; font-size:0.82rem; color:var(--text-muted); max-height:240px; overflow-y:auto;">
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Charts Row 3: Conversion Funnel -->
+                <div class="charts-container" style="grid-template-columns: 1fr;">
+                    <div class="chart-box">
+                        <h3>Conversion Funnel</h3>
+                        <div style="position: relative; height: 200px; width: 100%;">
+                            <canvas id="chart-funnel"></canvas>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- View 1: Upload (Existing) -->
+        <div id="view-upload" class="view-section">
+            <h2 class="section-title">New Transcription</h2>
+            <div class="upload-card" id="drop-zone">
+                <svg width="48" height="48" fill="none" stroke="var(--text-muted)" viewBox="0 0 24 24"
+                    style="margin-bottom:20px;">
+                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                        d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z">
+                    </path>
+                </svg>
+                <h3 style="font-family: 'Outfit'; font-size: 1.5rem; margin-bottom: 10px;">Select or Drop Audio</h3>
+                <p style="color: var(--text-muted); font-size: 0.95rem; line-height: 1.6;">Transcribe MP3, WAV, or M4A
+                    files locally.<br>Powered by automated Hinglish mapping & AI Summaries.</p>
+                <input type="file" id="file-input" accept="audio/*" multiple style="display:none;">
+                <button class="btn" style="margin-top: 30px;" id="browse-btn"
+                    onclick="document.getElementById('file-input').click()">Browse Local Files</button>
+            </div>
+
+            <div id="queue-container" style="display:none; max-width: 800px; margin: 40px auto; text-align: left;">
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                    <h3 style="font-family:'Outfit'; font-size:1.3rem; margin: 0;">Upload Queue <span id="queue-count"
+                            style="color:var(--text-muted); font-size:1rem; font-weight:normal;">(0)</span></h3>
+                    <button class="btn"
+                        style="padding: 8px 16px; font-size: 0.9rem; background: rgba(255,255,255,0.05); color: var(--text-color); border: 1px solid rgba(255,255,255,0.1);"
+                        onclick="document.getElementById('file-input').click()">+ Add More</button>
+                </div>
+                <div id="queue-list" style="display: flex; flex-direction: column; gap: 15px;"></div>
+            </div>
+        </div>
+
+        <!-- View 2: History (Existing) -->
+        <div id="view-history" class="view-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+                <h2 class="section-title" style="margin-bottom: 0;">Transcription History</h2>
+                <button class="btn btn-secondary" onclick="loadHistoryGrid()">Refresh</button>
+            </div>
+            <div id="history-loading" style="color: var(--text-muted); text-align: center; padding: 40px;">Fetching past
+                jobs...</div>
+            <div class="history-grid" id="history-grid"></div>
+        </div>
+
+        <!-- View 3: Dashboard Results (Existing) -->
+        <div id="view-dashboard" class="view-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                <h2 class="section-title" style="margin-bottom: 0;" id="dash-title">Call Analysis</h2>
+                <button class="btn btn-secondary"
+                    onclick="switchView('history', document.getElementById('nav-history'))">← Back to History</button>
+            </div>
+            <div class="dashboard-grid">
+                <div class="panel">
+                    <div class="panel-header">
+                        <h3>Transcribed Dialogue</h3>
+                        <div style="display:flex; align-items:center; gap:8px;">
+                            <button id="transcript-toggle-btn" class="toggle-rephrase-btn active"
+                                onclick="toggleTranscriptView()"
+                                title="Toggle between original and rephrased transcript">
+                                <span class="toggle-icon">✏️</span> Rephrased
+                            </button>
+                            <div class="badge" id="dash-engine">Hinglish</div>
+                        </div>
+                    </div>
+                    <div class="panel-content" id="dash-timeline"></div>
+                </div>
+                <div class="panel">
+                    <div class="panel-header" style="display:flex;align-items:center;">
+                        <h3 style="flex:1;">AI Quality Assurance Brief</h3>
+                        <button class="meta-toggle-btn" id="meta-stats-toggle" title="Toggle call metadata" onclick="toggleMetaStats()">
+                            <span style="font-size:0.75rem;letter-spacing:0.03em;">METADATA</span>
+                            <span class="chevron">&#8964;</span>
+                        </button>
+                    </div>
+                    <div class="panel-content" id="dash-analytics">
+                        <div class="meta-stats-collapsible" id="meta-stats-collapsible">
+                            <div class="meta-stats-grid">
+                                <div class="stat-card"><span>Duration</span><strong id="stat-dur">--</strong></div>
+                                <div class="stat-card"><span>Segments</span><strong id="stat-segs">--</strong></div>
+                                <div class="stat-card"><span>Diarization</span><strong id="stat-diar">--</strong></div>
+                            </div>
+                        </div>
+                        <div id="summary-render-container"></div>
+                    </div>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        function toggleMetaStats() {
+            const container = document.getElementById('meta-stats-collapsible');
+            const btn = document.getElementById('meta-stats-toggle');
+            if (!container) return;
+            const isOpen = container.classList.toggle('is-open');
+            btn.classList.toggle('open', isOpen);
+        }
+
+        let chartSentiment = null;
+        let chartProbability = null;
+        let chartPainpoints = null;
+        let chartKeywords = null;
+        let chartFunnel = null;
+
+        // Per-call drill-down data (populated by initOverview)
+        let drillData = {};
+
+        // --- Master Initialization ---
+        window.onload = () => {
+            initOverview();
+        };
+
+        // --- Navigation ---
+        function switchView(viewId, navElement) {
+            document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
+            document.getElementById('view-' + viewId).classList.add('active');
+
+            // Handle nav highlighting
+            if (navElement && navElement.classList) {
+                document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+                navElement.classList.add('active');
+            } else {
+                // Auto-detect nav target when called without navElement
+                document.querySelectorAll('.nav-item').forEach(el => el.classList.remove('active'));
+                let navTarget = document.getElementById('nav-' + viewId);
+                if (navTarget) navTarget.classList.add('active');
+            }
+
+            // Reset upload UI if navigating away
+            if (viewId !== 'upload') {
+                const dz = document.getElementById('drop-zone');
+                if (dz) dz.style.display = 'block';
+                const browseBtn = document.getElementById('browse-btn');
+                if (browseBtn) { browseBtn.disabled = false; browseBtn.textContent = 'Browse Local Files'; }
+            }
+
+            // Auto-load data views
+            if (viewId === 'history') loadHistoryGrid();
+            if (viewId === 'overview') initOverview();
+
+            // Ensure queue container remains visible if queue is active
+            if (Object.keys(activeQueue).length > 0) {
+                document.getElementById('queue-container').style.display = 'block';
+            }
+        }
+
+        // --- Overview Dashboard Initialization ---
+        async function initOverview() {
+            try {
+                const res = await fetch('/api/history');
+                const data = await res.json();
+                const history = data.history || [];
+
+                document.getElementById('overview-loading').style.display = 'none';
+                document.getElementById('overview-content').style.display = 'block';
+
+                if (history.length === 0) {
+                    document.getElementById('overview-content').innerHTML = '<div style="color:var(--text-muted);">No transcription data available to generate metrics. Process a call first!</div>';
+                    return;
+                }
+
+                // Compute global KPIs + per-call breakdowns
+                const totalCalls = history.length;
+                let totalSeconds = 0;
+                let totalDebt = 0;
+                let highLeads = 0;
+                let enrolled = 0;
+                let notEnrolled = 0;
+
+                let sentimentCounts = {};
+                let probabilityCounts = {};
+                let painPointCounts = {};
+                let keywordCounts = {};
+
+                // Per-call drill-down arrays
+                let debtBreakdown = [];    // [{filename, debt}]
+                let durationList = [];     // [{filename, duration}]
+                let highLeadList = [];     // [{filename, keywords}]
+                let conversionList = [];   // [{filename, enrolled, reason}]
+                let sentimentMap = {};     // {category: [{filename, evidence}]}
+                let probabilityMap = {};   // {category: [{filename, evidence}]}
+                let painPointMap = {};     // {category: [{filename, evidence}]}
+                let keywordDetails = [];   // [{keyword, timestamp, context, filename}]
+
+                const probColors = { 'High': '#34d399', 'Medium': '#fbbf24', 'Low': '#fca5a5', 'Not Applicable': '#a1a1aa' };
+
+                history.forEach(job => {
+                    const fname = job.filename || 'Unknown';
+                    const dur = job.duration || 0;
+                    totalSeconds += dur;
+                    durationList.push({ filename: fname, duration: dur });
+
+                    const summary = job.summary;
+                    if (summary && typeof summary === 'object') {
+                        const cats = summary.call_categories;
+                        if (cats) {
+                            const debt = cats.total_identified_debt_inr || 0;
+                            totalDebt += debt;
+                            debtBreakdown.push({ filename: fname, debt: debt });
+
+                            if (cats.lead_conversion_probability === 'High') {
+                                highLeads++;
+                                highLeadList.push({ filename: fname, keywords: (cats.major_keywords || []).join(', ') });
+                            }
+
+                            const sent = cats.customer_state_of_mind_category || 'Unknown';
+                            sentimentCounts[sent] = (sentimentCounts[sent] || 0) + 1;
+                            if (!sentimentMap[sent]) sentimentMap[sent] = [];
+                            sentimentMap[sent].push({ filename: fname, evidence: cats.state_of_mind_evidence || '' });
+
+                            const prob = cats.lead_conversion_probability || 'Unknown';
+                            probabilityCounts[prob] = (probabilityCounts[prob] || 0) + 1;
+                            if (!probabilityMap[prob]) probabilityMap[prob] = [];
+                            probabilityMap[prob].push({ filename: fname, evidence: cats.conversion_evidence || '' });
+
+                            const pain = cats.primary_pain_point_category || 'Unknown';
+                            painPointCounts[pain] = (painPointCounts[pain] || 0) + 1;
+                            if (!painPointMap[pain]) painPointMap[pain] = [];
+                            painPointMap[pain].push({ filename: fname, evidence: cats.pain_point_evidence || '' });
+
+                            (cats.major_keywords || []).forEach(kw => {
+                                const raw = kw.trim();
+                                // Parse: "Keyword [MM:SS] — context" format
+                                const tsMatch = raw.match(/\[([\d:]+)\]/);
+                                const dashIdx = raw.indexOf('—');
+                                let keyword = raw, timestamp = '', context = '';
+                                if (tsMatch) {
+                                    keyword = raw.substring(0, raw.indexOf('[')).trim();
+                                    timestamp = tsMatch[1];
+                                }
+                                if (dashIdx !== -1) {
+                                    context = raw.substring(dashIdx + 1).trim();
+                                    if (!keyword) keyword = raw.substring(0, dashIdx).replace(/\[.*?\]/g, '').trim();
+                                }
+                                if (!keyword) keyword = raw.replace(/\[.*?\]/g, '').trim();
+                                if (keyword) {
+                                    const cleanKey = keyword.split(' ').map(w => w.charAt(0).toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+                                    keywordCounts[cleanKey] = (keywordCounts[cleanKey] || 0) + 1;
+                                    keywordDetails.push({ keyword: cleanKey, timestamp, context, filename: fname });
+                                }
+                            });
+                        }
+
+                        // Conversion analysis
+                        const conv = summary.conversion_analysis;
+                        if (conv) {
+                            const didEnroll = (conv.did_customer_enroll || '').toLowerCase();
+                            if (didEnroll === 'yes') {
+                                enrolled++;
+                                conversionList.push({ filename: fname, enrolled: 'Yes', reason: conv.enrollment_outcome_summary || '' });
+                            } else if (didEnroll === 'no') {
+                                notEnrolled++;
+                                conversionList.push({ filename: fname, enrolled: 'No', reason: conv.dropoff_reasons || '' });
+                            } else {
+                                conversionList.push({ filename: fname, enrolled: 'Unclear', reason: conv.enrollment_outcome_summary || '' });
+                            }
+                        }
+                    }
+                });
+
+                // Store drill-down data globally
+                drillData = { debtBreakdown, durationList, highLeadList, conversionList, sentimentMap, probabilityMap, painPointMap, keywordDetails };
+
+                // Format numbers
+                const formattedDebt = new Intl.NumberFormat('en-IN').format(totalDebt);
+                const avgDebt = totalCalls > 0 ? new Intl.NumberFormat('en-IN').format(Math.round(totalDebt / totalCalls)) : '0';
+                const convRate = totalCalls > 0 ? ((enrolled / totalCalls) * 100).toFixed(1) : '0';
+                const dropRate = totalCalls > 0 ? ((notEnrolled / totalCalls) * 100).toFixed(1) : '0';
+
+                // Hydrate KPIs
+                document.getElementById('kpi-total-calls').textContent = totalCalls;
+                document.getElementById('kpi-total-debt').textContent = '₹' + formattedDebt;
+                document.getElementById('kpi-avg-duration').textContent = totalCalls > 0 ? (totalSeconds / totalCalls).toFixed(0) + 's' : '0s';
+                document.getElementById('kpi-high-leads').textContent = highLeads;
+                document.getElementById('kpi-conv-rate').textContent = convRate + '%';
+                document.getElementById('kpi-dropoff-rate').textContent = dropRate + '%';
+                document.getElementById('kpi-avg-debt').textContent = '₹' + avgDebt;
+
+                // --- KPI Tooltip Drill-Down ---
+                const tooltip = document.getElementById('kpi-tooltip');
+                document.querySelectorAll('.kpi-card[data-kpi]').forEach(card => {
+                    card.addEventListener('mouseenter', (e) => {
+                        const kpi = card.getAttribute('data-kpi');
+                        let html = '';
+
+                        if (kpi === 'total-debt') {
+                            const sorted = [...drillData.debtBreakdown].sort((a, b) => b.debt - a.debt);
+                            html = '<div style="font-weight:600; margin-bottom:8px; color:#6ee7b7;">Debt Breakdown by Call</div>';
+                            html += sorted.map(d => `<div style="display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid rgba(255,255,255,0.05);"><span style="max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${d.filename}</span><span style="color:#6ee7b7; font-weight:500;">₹${new Intl.NumberFormat('en-IN').format(d.debt)}</span></div>`).join('');
+                        } else if (kpi === 'high-leads') {
+                            html = '<div style="font-weight:600; margin-bottom:8px; color:#fca5a5;">High Intent Lead Evidence</div>';
+                            if (drillData.highLeadList.length === 0) { html += '<div style="color:var(--text-muted);">No high intent leads detected yet.</div>'; }
+                            else { html += drillData.highLeadList.map(d => `<div style="padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.05);"><strong>${d.filename}</strong><br><span style="color:var(--text-muted); font-size:0.8rem;">Keywords: ${d.keywords}</span></div>`).join(''); }
+                        } else if (kpi === 'avg-duration') {
+                            const sorted = [...drillData.durationList].sort((a, b) => b.duration - a.duration);
+                            const median = sorted.length > 0 ? sorted[Math.floor(sorted.length / 2)].duration : 0;
+                            html = '<div style="font-weight:600; margin-bottom:8px;">Duration Distribution</div>';
+                            html += `<div style="margin-bottom:8px;">Longest: <strong>${sorted[0]?.duration.toFixed(0)}s</strong> | Shortest: <strong>${sorted[sorted.length - 1]?.duration.toFixed(0)}s</strong> | Median: <strong>${median.toFixed(0)}s</strong></div>`;
+                            html += sorted.slice(0, 8).map(d => `<div style="display:flex; justify-content:space-between; padding:2px 0;"><span style="max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${d.filename}</span><span>${d.duration.toFixed(0)}s</span></div>`).join('');
+                            if (sorted.length > 8) html += `<div style="color:var(--text-muted); margin-top:4px;">...and ${sorted.length - 8} more</div>`;
+                        } else if (kpi === 'conversion-rate' || kpi === 'dropoff-rate') {
+                            const filter = kpi === 'conversion-rate' ? 'Yes' : 'No';
+                            const color = kpi === 'conversion-rate' ? '#34d399' : '#fbbf24';
+                            const filtered = drillData.conversionList.filter(d => d.enrolled === filter);
+                            html = `<div style="font-weight:600; margin-bottom:8px; color:${color};">${filter === 'Yes' ? 'Enrolled Calls' : 'Dropped Off Calls'}</div>`;
+                            if (filtered.length === 0) { html += '<div style="color:var(--text-muted);">No data available yet.</div>'; }
+                            else { html += filtered.map(d => `<div style="padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.05);"><strong>${d.filename}</strong><br><span style="color:var(--text-muted); font-size:0.8rem;">${d.reason.substring(0, 150)}${d.reason.length > 150 ? '...' : ''}</span></div>`).join(''); }
+                        } else if (kpi === 'avg-debt') {
+                            html = '<div style="font-weight:600; margin-bottom:8px; color:#a78bfa;">Per-Call Debt Analysis</div>';
+                            const sorted = [...drillData.debtBreakdown].sort((a, b) => b.debt - a.debt);
+                            html += sorted.slice(0, 8).map(d => `<div style="display:flex; justify-content:space-between; padding:2px 0;"><span style="max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${d.filename}</span><span style="color:#a78bfa;">₹${new Intl.NumberFormat('en-IN').format(d.debt)}</span></div>`).join('');
+                        } else if (kpi === 'total-calls') {
+                            html = '<div style="font-weight:600; margin-bottom:8px;">All Processed Calls</div>';
+                            html += drillData.durationList.slice(0, 10).map(d => `<div style="padding:2px 0;">${d.filename} <span style="color:var(--text-muted);">(${d.duration.toFixed(0)}s)</span></div>`).join('');
+                            if (drillData.durationList.length > 10) html += `<div style="color:var(--text-muted); margin-top:4px;">...and ${drillData.durationList.length - 10} more</div>`;
+                        }
+
+                        if (html) {
+                            tooltip.innerHTML = html;
+                            tooltip.style.display = 'block';
+                            const rect = card.getBoundingClientRect();
+                            tooltip.style.left = Math.min(rect.left, window.innerWidth - 440) + 'px';
+                            tooltip.style.top = (rect.bottom + 8) + 'px';
+                        }
+                    });
+                    card.addEventListener('mouseleave', () => { tooltip.style.display = 'none'; });
+                });
+
+                // --- Chart Defaults ---
+                Chart.defaults.color = '#a1a1aa';
+                Chart.defaults.font.family = 'Inter';
+                Chart.defaults.scale.grid.color = 'rgba(255,255,255,0.05)';
+                Chart.defaults.plugins.tooltip.backgroundColor = 'rgba(24,24,27,0.9)';
+                Chart.defaults.plugins.tooltip.titleColor = '#fff';
+                Chart.defaults.plugins.tooltip.padding = 10;
+                Chart.defaults.plugins.tooltip.cornerRadius = 8;
+                Chart.defaults.plugins.tooltip.borderColor = 'rgba(255,255,255,0.1)';
+                Chart.defaults.plugins.tooltip.borderWidth = 1;
+
+                // Helper: build a chart click handler that shows contributing calls WITH evidence
+                function chartClickHandler(detailElId, dataMap) {
+                    return (evt, elements) => {
+                        const detailEl = document.getElementById(detailElId);
+                        if (elements.length === 0) { detailEl.style.display = 'none'; return; }
+                        const idx = elements[0].index;
+                        const label = Object.keys(dataMap)[idx];
+                        const calls = dataMap[label] || [];
+                        let html = `<div style="font-weight:600; color:var(--text); margin-bottom:8px; font-size:0.9rem;">${label} — <span style="color:var(--text-muted); font-weight:400;">${calls.length} call(s)</span></div>`;
+                        calls.forEach(call => {
+                            const fname = typeof call === 'string' ? call : call.filename;
+                            const evidence = typeof call === 'object' ? call.evidence : '';
+                            html += `<div style="padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.06);">`;
+                            html += `<div style="font-weight:500; color:#e4e4e7; margin-bottom:4px;">📞 ${fname}</div>`;
+                            if (evidence) {
+                                html += `<div style="color:var(--text-muted); font-size:0.8rem; line-height:1.5; padding-left:12px; border-left:2px solid rgba(139,92,246,0.3);">${evidence}</div>`;
+                            }
+                            html += `</div>`;
+                        });
+                        detailEl.innerHTML = html;
+                        detailEl.style.display = 'block';
+                    };
+                }
+
+                // --- 1. Sentiment Chart (Doughnut) ---
+                if (chartSentiment) chartSentiment.destroy();
+                const ctxSent = document.getElementById('chart-sentiment').getContext('2d');
+                chartSentiment = new Chart(ctxSent, {
+                    type: 'doughnut',
+                    data: {
+                        labels: Object.keys(sentimentCounts),
+                        datasets: [{ data: Object.values(sentimentCounts), backgroundColor: ['#8b5cf6', '#38bdf8', '#fbbf24', '#fca5a5', '#34d399', '#a1a1aa'], borderWidth: 0, hoverOffset: 4 }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false, cutout: '70%',
+                        plugins: { legend: { position: 'right' } },
+                        onClick: chartClickHandler('chart-sentiment-detail', sentimentMap)
+                    }
+                });
+
+                // --- 2. Lead Probability Chart (Pie) ---
+                if (chartProbability) chartProbability.destroy();
+                const probLabels = Object.keys(probabilityCounts);
+                const probData = probLabels.map(l => probabilityCounts[l]);
+                const probBg = probLabels.map(l => probColors[l] || '#8b5cf6');
+                const ctxProb = document.getElementById('chart-probability').getContext('2d');
+                chartProbability = new Chart(ctxProb, {
+                    type: 'pie',
+                    data: { labels: probLabels, datasets: [{ data: probData, backgroundColor: probBg, borderWidth: 0, hoverOffset: 4 }] },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { position: 'right' } },
+                        onClick: chartClickHandler('chart-probability-detail', probabilityMap)
+                    }
+                });
+
+                // --- 3. Pain Points Chart (Bar) ---
+                if (chartPainpoints) chartPainpoints.destroy();
+                const ctxPain = document.getElementById('chart-painpoints').getContext('2d');
+                const sortedPain = Object.keys(painPointCounts).sort((a, b) => painPointCounts[b] - painPointCounts[a]);
+                const countsPain = sortedPain.map(k => painPointCounts[k]);
+                // Rebuild painPointMap keys in sorted order for click handler
+                const sortedPainMap = {};
+                sortedPain.forEach(k => sortedPainMap[k] = painPointMap[k]);
+                chartPainpoints = new Chart(ctxPain, {
+                    type: 'bar',
+                    data: { labels: sortedPain, datasets: [{ label: 'Instances Identified', data: countsPain, backgroundColor: 'rgba(56, 189, 248, 0.6)', hoverBackgroundColor: 'rgba(56, 189, 248, 1)', borderRadius: 6, borderWidth: 0 }] },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { stepSize: 1 } } },
+                        onClick: chartClickHandler('chart-painpoints-detail', sortedPainMap)
+                    }
+                });
+
+                // --- 4. Keywords Chart (Horizontal Bar) ---
+                if (chartKeywords) chartKeywords.destroy();
+                const ctxKeywords = document.getElementById('chart-keywords').getContext('2d');
+                const sortedKeywords = Object.keys(keywordCounts).sort((a, b) => keywordCounts[b] - keywordCounts[a]).slice(0, 8);
+                const countsKeywords = sortedKeywords.map(k => keywordCounts[k]);
+                const paletteBg = ['#8b5cf6', '#38bdf8', '#fbbf24', '#fca5a5', '#34d399', '#a1a1aa', '#6366f1', '#ec4899'].map(c => c + '99');
+                const paletteBorder = ['#8b5cf6', '#38bdf8', '#fbbf24', '#fca5a5', '#34d399', '#a1a1aa', '#6366f1', '#ec4899'];
+                chartKeywords = new Chart(ctxKeywords, {
+                    type: 'bar',
+                    data: { labels: sortedKeywords, datasets: [{ label: 'Mentions across all calls', data: countsKeywords, backgroundColor: paletteBg, hoverBackgroundColor: paletteBorder, borderRadius: 4, borderWidth: 0 }] },
+                    options: {
+                        indexAxis: 'y', responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { y: { grid: { display: false } }, x: { beginAtZero: true, ticks: { stepSize: 1, precision: 0 } } },
+                        onClick: (evt, elements) => {
+                            const detailEl = document.getElementById('chart-keywords-detail');
+                            if (!detailEl) return;
+                            if (elements.length === 0) { detailEl.style.display = 'none'; return; }
+                            const idx = elements[0].index;
+                            const clickedKw = sortedKeywords[idx];
+                            const matches = (drillData.keywordDetails || []).filter(d => d.keyword === clickedKw);
+                            let html = `<div style="font-weight:600; color:var(--text); margin-bottom:8px; font-size:0.9rem;">"${clickedKw}" — <span style="color:var(--text-muted); font-weight:400;">${matches.length} occurrence(s)</span></div>`;
+                            matches.forEach(m => {
+                                html += `<div style="padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.06);">`;
+                                html += `<div style="display:flex; align-items:center; gap:8px; margin-bottom:3px;">`;
+                                html += `<span style="font-weight:500; color:#e4e4e7;">📞 ${m.filename}</span>`;
+                                if (m.timestamp) html += `<span style="color:#8b5cf6; font-family:monospace; font-size:0.75rem;">[${m.timestamp}]</span>`;
+                                html += `</div>`;
+                                if (m.context) html += `<div style="color:var(--text-muted); font-size:0.8rem; line-height:1.4; padding-left:12px; border-left:2px solid rgba(56,189,248,0.3);">${m.context}</div>`;
+                                html += `</div>`;
+                            });
+                            detailEl.innerHTML = html;
+                            detailEl.style.display = 'block';
+                        }
+                    }
+                });
+
+                // --- 5. Conversion Funnel Chart ---
+                if (chartFunnel) chartFunnel.destroy();
+                const ctxFunnel = document.getElementById('chart-funnel').getContext('2d');
+                const unclear = totalCalls - enrolled - notEnrolled;
+                chartFunnel = new Chart(ctxFunnel, {
+                    type: 'bar',
+                    data: {
+                        labels: ['Total Calls', 'Enrolled', 'Dropped Off', 'Unclear'],
+                        datasets: [{
+                            data: [totalCalls, enrolled, notEnrolled, unclear],
+                            backgroundColor: ['rgba(139, 92, 246, 0.7)', 'rgba(52, 211, 153, 0.7)', 'rgba(251, 191, 36, 0.7)', 'rgba(161, 161, 170, 0.5)'],
+                            borderRadius: 6, borderWidth: 0
+                        }]
+                    },
+                    options: {
+                        responsive: true, maintainAspectRatio: false,
+                        plugins: { legend: { display: false } },
+                        scales: { x: { grid: { display: false } }, y: { beginAtZero: true, ticks: { stepSize: 1 } } }
+                    }
+                });
+
+                // --- 6. Double-Click Dismiss Feature ---
+                // Allows users to dbl-click KPI cards and chart boxes to hide them
+                const dismissableEls = document.querySelectorAll('#view-overview .kpi-card, #view-overview .chart-box');
+                const hiddenElements = [];
+
+                dismissableEls.forEach(el => {
+                    el.style.cursor = 'pointer';
+                    el.title = 'Double-click to dismiss';
+                    el.addEventListener('dblclick', function (e) {
+                        e.stopPropagation();
+                        this.style.transition = 'opacity 0.35s ease, transform 0.35s ease';
+                        this.style.opacity = '0';
+                        this.style.transform = 'scale(0.92)';
+                        setTimeout(() => {
+                            this.style.display = 'none';
+                            hiddenElements.push(this);
+                            showRestoreBtn();
+                        }, 350);
+                    });
+                });
+
+                // Restore button
+                function showRestoreBtn() {
+                    let btn = document.getElementById('restore-dismissed-btn');
+                    if (!btn) {
+                        btn = document.createElement('button');
+                        btn.id = 'restore-dismissed-btn';
+                        btn.textContent = '↩ Restore All Dismissed';
+                        btn.style.cssText = 'position:fixed; bottom:24px; right:24px; padding:10px 20px; background:rgba(139,92,246,0.85); color:#fff; border:none; border-radius:10px; cursor:pointer; font-size:0.85rem; font-family:Inter; z-index:999; backdrop-filter:blur(8px); box-shadow:0 4px 20px rgba(0,0,0,0.3); transition:transform 0.2s, opacity 0.2s;';
+                        btn.addEventListener('mouseenter', () => { btn.style.transform = 'scale(1.05)'; });
+                        btn.addEventListener('mouseleave', () => { btn.style.transform = 'scale(1)'; });
+                        btn.addEventListener('click', () => {
+                            hiddenElements.forEach(el => {
+                                el.style.display = '';
+                                el.style.opacity = '1';
+                                el.style.transform = 'scale(1)';
+                            });
+                            hiddenElements.length = 0;
+                            btn.remove();
+                        });
+                        document.body.appendChild(btn);
+                    }
+                }
+
+            } catch (e) {
+                document.getElementById('overview-loading').textContent = 'Failed to load metrics: ' + e.message;
+            }
+        }
+
+        // --- Upload & Polling ---
+        const dropZone = document.getElementById('drop-zone');
+        const fileInput = document.getElementById('file-input');
+
+        dropZone.addEventListener('dragover', e => { e.preventDefault(); dropZone.classList.add('dragover'); });
+        dropZone.addEventListener('dragleave', () => dropZone.classList.remove('dragover'));
+        dropZone.addEventListener('drop', e => {
+            e.preventDefault(); dropZone.classList.remove('dragover');
+            if (e.dataTransfer.files.length) startUpload(e.dataTransfer.files);
+        });
+        fileInput.addEventListener('change', e => {
+            if (e.target.files.length) startUpload(e.target.files);
+        });
+
+        // State tracking
+        const activeQueue = {};
+
+        function updateQueueCount() {
+            const count = Object.keys(activeQueue).length;
+            document.getElementById('queue-count').textContent = `(${count})`;
+        }
+
+        function createQueueItemUI(jobId, filename, isRestoring = false) {
+            const list = document.getElementById('queue-list');
+            const item = document.createElement('div');
+            item.id = `queue-item-${jobId}`;
+            item.style.cssText = 'background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 8px; padding: 15px; display: flex; flex-direction: column; gap: 10px; box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);';
+
+            item.innerHTML = `
+                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px;">
+                    <div style="display: flex; flex-direction: column; gap: 4px; width: 60%;">
+                        <strong style="font-family: monospace; font-size: 0.95rem; color: var(--text-color);">${filename}</strong>
+                        <div style="font-size: 0.85rem; color: var(--text-muted); font-family: 'Inter', sans-serif;" id="queue-progress-${jobId}">
+                            ${isRestoring ? 'Restoring session...' : 'Initializing payload transmission'}
+                        </div>
+                    </div>
+                    <div style="display: flex; flex-direction: column; align-items: flex-end; gap: 8px;">
+                        <span id="queue-status-${jobId}" style="font-size: 0.85rem; padding: 4px 10px; border-radius: 6px; background: rgba(56, 189, 248, 0.1); color: #38bdf8; font-weight: 500;">
+                            ${isRestoring ? 'Syncing...' : 'Uploading...'}
+                        </span>
+                        <button id="queue-cancel-${jobId}" onclick="cancelJob('${jobId}')" style="background: none; border: none; font-size: 0.8rem; color: #fca5a5; cursor: pointer; padding: 0; opacity: 0.8;">Cancel</button>
+                    </div>
+                </div>
+                <div style="width: 100%; background: #3f3f46; border-radius: 4px; overflow: hidden; height: 4px;">
+                     <div id="queue-bar-${jobId}" style="width: 0%; height: 100%; background: var(--primary); transition: width 0.3s ease;"></div>
+                </div>
+            `;
+            list.appendChild(item);
+
+            // Ensure container remains visible in edge cases
+            document.getElementById('queue-container').style.display = 'block';
+            document.getElementById('drop-zone').style.display = 'none';
+
+            return item;
+        }
+
+        async function startUpload(files) {
+            document.getElementById('drop-zone').style.display = 'none';
+            document.getElementById('queue-container').style.display = 'block';
+
+            for (let i = 0; i < files.length; i++) {
+                const file = files[i];
+                const tempId = 'temp_' + Date.now() + '_' + i;
+
+                createQueueItemUI(tempId, file.name);
+                activeQueue[tempId] = { status: 'uploading', filename: file.name };
+                updateQueueCount();
+
+                const formData = new FormData();
+                formData.append('file', file);
+
+                try {
+                    const res = await fetch('/api/transcribe', { method: 'POST', body: formData });
+                    if (!res.ok) throw new Error(await res.text());
+                    const data = await res.json();
+
+                    // Replace tempId with real jobId in UI
+                    const item = document.getElementById(`queue-item-${tempId}`);
+                    item.id = `queue-item-${data.job_id}`;
+                    document.getElementById(`queue-status-${tempId}`).id = `queue-status-${data.job_id}`;
+                    document.getElementById(`queue-progress-${tempId}`).id = `queue-progress-${data.job_id}`;
+
+                    const pBar = document.getElementById(`queue-bar-${tempId}`);
+                    if (pBar) pBar.id = `queue-bar-${data.job_id}`;
+
+                    const cancelBtn = document.getElementById(`queue-cancel-${tempId}`);
+                    if (cancelBtn) {
+                        cancelBtn.id = `queue-cancel-${data.job_id}`;
+                        cancelBtn.setAttribute('onclick', `cancelJob('${data.job_id}')`);
+                    }
+
+                    delete activeQueue[tempId];
+                    activeQueue[data.job_id] = { status: 'queued', filename: file.name };
+
+                    document.getElementById(`queue-status-${data.job_id}`).textContent = "Queued";
+                    document.getElementById(`queue-status-${data.job_id}`).style.cssText = "font-size: 0.85rem; padding: 4px 10px; border-radius: 6px; font-weight: 500; background: rgba(161, 161, 170, 0.1); color: #a1a1aa;";
+                    document.getElementById(`queue-progress-${data.job_id}`).textContent = "Position: " + data.queue_position;
+
+                    pollJob(data.job_id);
+                } catch (err) {
+                    const statusEl = document.getElementById(`queue-status-${tempId}`);
+                    if (statusEl) {
+                        statusEl.textContent = "Failed";
+                        statusEl.style.cssText = "font-size: 0.85rem; padding: 4px 10px; border-radius: 6px; font-weight: 500; background: rgba(239, 68, 68, 0.1); color: #fca5a5;";
+                    }
+                    const progressEl = document.getElementById(`queue-progress-${tempId}`);
+                    if (progressEl) {
+                        progressEl.textContent = "Upload Failed: " + err.message;
+                    }
+                    delete activeQueue[tempId];
+                    updateQueueCount();
+                }
+            }
+        }
+
+        async function pollJob(jobId) {
+            try {
+                const res = await fetch(`/api/status/${jobId}`);
+                const data = await res.json();
+
+                const progressEl = document.getElementById(`queue-progress-${jobId}`);
+                const statusEl = document.getElementById(`queue-status-${jobId}`);
+                const barEl = document.getElementById(`queue-bar-${jobId}`);
+
+                if (!progressEl || !statusEl) return; // UI element might have been unmounted
+
+                progressEl.textContent = data.progress;
+                if (barEl && data.progress_percent !== undefined) {
+                    barEl.style.width = `${data.progress_percent}%`;
+                }
+
+                if (data.status === 'completed') {
+                    statusEl.textContent = "Done";
+                    statusEl.style.color = "#34d399";
+                    statusEl.style.background = "rgba(52, 211, 153, 0.1)";
+                    if (barEl) {
+                        barEl.style.background = "#34d399";
+                        barEl.style.width = "100%";
+                    }
+
+                    delete activeQueue[jobId];
+                    updateQueueCount();
+
+                    // Background refresh
+                    initOverview();
+
+                    // Add actionable button
+                    const viewBtn = document.createElement('button');
+                    viewBtn.textContent = 'View Dashboard Results →';
+                    viewBtn.style.cssText = 'background: none; border: none; color: var(--primary); cursor: pointer; padding: 0; font-size: 0.9rem; font-weight: 500; margin-top: 5px;';
+                    viewBtn.onclick = () => renderDashboard(data.result);
+
+                    progressEl.innerHTML = '';
+                    progressEl.appendChild(viewBtn);
+
+                    // Replace Cancel with Clear button
+                    const cancelBtn = document.getElementById(`queue-cancel-${jobId}`);
+                    if (cancelBtn) {
+                        cancelBtn.textContent = 'Clear';
+                        cancelBtn.style.color = '#a1a1aa';
+                        cancelBtn.setAttribute('onclick', '');
+                        cancelBtn.onclick = () => {
+                            const item = document.getElementById(`queue-item-${jobId}`);
+                            if (item) item.remove();
+                            // Show dropzone again if queue is now empty
+                            const list = document.getElementById('queue-list');
+                            if (list && list.children.length === 0) {
+                                document.getElementById('queue-container').style.display = 'none';
+                                document.getElementById('drop-zone').style.display = 'block';
+                            }
+                        };
+                    }
+
+                } else if (data.status === 'failed') {
+                    statusEl.textContent = "Failed";
+                    statusEl.style.color = "#fca5a5";
+                    statusEl.style.background = "rgba(239, 68, 68, 0.1)";
+                    progressEl.textContent = data.error || "Unknown Error";
+                    if (barEl) barEl.style.background = "#ef4444";
+
+                    delete activeQueue[jobId];
+                    updateQueueCount();
+                    const cancelBtn = document.getElementById(`queue-cancel-${jobId}`);
+                    if (cancelBtn) cancelBtn.style.display = 'none';
+
+                } else if (data.status === 'cancelled') {
+                    statusEl.textContent = "Cancelled";
+                    statusEl.style.color = "#fca5a5";
+                    statusEl.style.background = "rgba(239, 68, 68, 0.1)";
+                    progressEl.textContent = data.progress;
+
+                    delete activeQueue[jobId];
+                    updateQueueCount();
+                    const cancelBtn = document.getElementById(`queue-cancel-${jobId}`);
+                    if (cancelBtn) cancelBtn.style.display = 'none';
+
+                } else if (data.status === 'processing') {
+                    statusEl.textContent = "Processing";
+                    statusEl.style.color = "#fbbf24";
+                    statusEl.style.background = "rgba(251, 191, 36, 0.1)";
+                    setTimeout(() => pollJob(jobId), 2000);
+                } else {
+                    statusEl.textContent = "Queued";
+                    statusEl.style.color = "#a1a1aa";
+                    statusEl.style.background = "rgba(161, 161, 170, 0.1)";
+                    setTimeout(() => pollJob(jobId), 2000);
+                }
+            } catch (err) {
+                const statusEl = document.getElementById(`queue-status-${jobId}`);
+                if (statusEl) {
+                    statusEl.textContent = "Connection Error";
+                    statusEl.style.color = "#fca5a5";
+                    statusEl.style.background = "rgba(239, 68, 68, 0.1)";
+                    setTimeout(() => pollJob(jobId), 3000);
+                }
+            }
+        }
+
+        // --- History Rest Calls ---
+        async function deleteHistory(event, jobId, element) {
+            if (event) {
+                event.stopPropagation();
+                event.preventDefault();
+            }
+            if (!confirm("Are you sure you want to permanently delete this transcription history?")) return;
+
+            try {
+                const res = await fetch(`/api/history/${jobId}`, { method: 'DELETE' });
+                if (res.ok) {
+                    element.remove();
+                    initOverview(); // refresh charts in background
+                } else {
+                    alert('Failed to delete history item');
+                }
+            } catch (err) {
+                console.error(err);
+                alert('Connection error while trying to delete.');
+            }
+        }
+
+        // --- History Grid Loading ---
+        function scrollToTime(timeInput) {
+            // Accept both raw seconds (number) and "MM:SS" / "HH:MM:SS" strings
+            let seconds;
+            if (typeof timeInput === 'number') {
+                seconds = timeInput;
+            } else {
+                const parts = String(timeInput).split(':').map(Number);
+                if (parts.length === 2) {
+                    seconds = parts[0] * 60 + parts[1];
+                } else if (parts.length === 3) {
+                    seconds = parts[0] * 3600 + parts[1] * 60 + parts[2];
+                } else {
+                    seconds = parseFloat(timeInput) || 0;
+                }
+            }
+
+            const timeline = document.getElementById('dash-timeline');
+            const messages = timeline.querySelectorAll('.message');
+            let closest = null;
+            let minDiff = Infinity;
+
+            messages.forEach(msg => {
+                const t0 = parseFloat(msg.getAttribute('data-time'));
+                const t1 = parseFloat(msg.getAttribute('data-end')) || (t0 + 5);
+
+                if (!isNaN(t0)) {
+                    // Exact match: if the timestamp falls within this spoken chunk's timeframe
+                    if (seconds >= t0 && seconds <= t1 + 1) {
+                        // Tiebreak overlapping segments: prefer one whose t0 is closest to target
+                        const overlapDiff = Math.abs(t0 - seconds);
+                        if (minDiff !== 0 || overlapDiff < (closest ? Math.abs(parseFloat(closest.getAttribute('data-time')) - seconds) : Infinity)) {
+                            closest = msg;
+                            minDiff = 0;
+                        }
+                    }
+                    // Fallback closest match
+                    else if (minDiff !== 0) {
+                        const diff = Math.min(Math.abs(t0 - seconds), Math.abs(t1 - seconds));
+                        if (diff < minDiff) {
+                            minDiff = diff;
+                            closest = msg;
+                        }
+                    }
+                }
+            });
+
+            if (closest) {
+                closest.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                const origBg = closest.style.backgroundColor;
+                closest.style.backgroundColor = 'rgba(56, 189, 248, 0.3)';
+                setTimeout(() => {
+                    closest.style.backgroundColor = origBg || '';
+                }, 1500);
+            }
+        }
+
+        function formatMarkdownAndTimestamps(text) {
+            if (!text) return '';
+
+            const lines = text.split('\n');
+            let html = '';
+            let inList = false;
+
+            lines.forEach(line => {
+                line = line.trim();
+
+                // Dedup timestamps per bullet point/line
+                let seenTimestamps = new Set();
+                const timestampRegex = /\[(\d{2}:\d{2}(?::\d{2})?)\](?:\s*\(\s*(AGENT|CUSTOMER|CUSTOMER\/AGENT|AGENT\/CUSTOMER)\s*\))?/gi;
+
+                line = line.replace(timestampRegex, (match, timeStr, speaker) => {
+                    if (seenTimestamps.has(timeStr)) return ''; // Eliminate duplicate redirects in single pointer
+                    seenTimestamps.add(timeStr);
+
+                    let spkName = speaker ? speaker.toUpperCase() : '';
+                    let titleText = `Jump to ${timeStr}`;
+                    let dotColor = 'var(--text-muted)';
+                    let hoverColor = '#38bdf8';
+
+                    if (spkName.includes('AGENT') && spkName.includes('CUSTOMER')) {
+                        titleText = `Agent & Customer at ${timeStr}`;
+                        dotColor = 'rgba(167, 139, 250, 0.7)'; // subtle purple
+                        hoverColor = '#a78bfa';
+                    } else if (spkName.includes('AGENT')) {
+                        titleText = `Agent at ${timeStr}`;
+                        dotColor = 'rgba(56, 189, 248, 0.7)'; // subtle blue
+                        hoverColor = '#38bdf8';
+                    } else if (spkName.includes('CUSTOMER')) {
+                        titleText = `Customer at ${timeStr}`;
+                        dotColor = 'rgba(52, 211, 153, 0.7)'; // subtle green
+                        hoverColor = '#34d399';
+                    }
+
+                    return `<a href="#" onclick="event.preventDefault(); scrollToTime('${timeStr}')" style="color: ${dotColor}; text-decoration: none; cursor: pointer; font-size: 0.85em; margin-left: 3px; vertical-align: super; transition: all 0.2s;" onmouseover="this.style.color='${hoverColor}'" onmouseout="this.style.color='${dotColor}'" title="${titleText}">[↗]</a>`;
+                });
+
+                // Soften any remaining standalone AGENT or CUSTOMER mentions
+                line = line.replace(/\b(AGENT|CUSTOMER)\b/g, (match) => {
+                    let colorBase = match === 'AGENT' ? '56, 189, 248' : '52, 211, 153';
+                    let text = match.charAt(0) + match.slice(1).toLowerCase();
+                    return `<span style="color: rgba(${colorBase}, 0.9); font-size: 0.9em; font-weight: 500;">${text}</span>`;
+                });
+
+                // Convert **bold** markdown to strong tags
+                line = line.replace(/\*\*([^*]+)\*\*/g, '<strong>$1</strong>');
+
+                if (line.startsWith('- ') || line.startsWith('* ')) {
+                    if (!inList) {
+                        html += '<ul class="summary-list">';
+                        inList = true;
+                    }
+                    html += `<li>${line.substring(2)}</li>`;
+                } else if (line) {
+                    if (inList) {
+                        html += '</ul>';
+                        inList = false;
+                    }
+                    html += `<div style="margin-bottom: 8px; line-height: 1.5;">${line}</div>`;
+                }
+            });
+            if (inList) html += '</ul>';
+
+            return html;
+        }
+
+        // --- History Grid ---
+        window._historyCache = [];  // Global store for history job data
+
+        async function loadHistoryGrid() {
+            const grid = document.getElementById('history-grid');
+            const loader = document.getElementById('history-loading');
+            grid.innerHTML = '';
+            loader.style.display = 'block';
+
+            try {
+                const res = await fetch('/api/history');
+                const data = await res.json();
+                loader.style.display = 'none';
+                window._historyCache = data.history || [];
+
+                if (window._historyCache.length === 0) {
+                    grid.innerHTML = '<div style="color:var(--text-muted); grid-column:1/-1;">No past transcriptions found.</div>';
+                    return;
+                }
+
+                window._historyCache.forEach((job, idx) => {
+                    const card = document.createElement('div');
+                    card.className = 'history-card';
+                    card.style.position = 'relative';
+
+                    let prettyDate = "Recent";
+                    const parts = job.id.split('_');
+                    if (parts.length >= 3) {
+                        try {
+                            const dateStr = parts[parts.length - 3];
+                            prettyDate = `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`;
+                        } catch (e) { }
+                    }
+
+                    card.innerHTML = `
+                        <div style="position: absolute; top: 10px; right: 10px; z-index: 10;">
+                            <button onclick="deleteHistory(event, '${job.id}', this.closest('.history-card'));" style="background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 4px; border-radius: 4px;">
+                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                    <path d="M3 6h18"></path>
+                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                                </svg>
+                            </button>
+                        </div>
+                        <div onclick="renderDashboard(window._historyCache[${idx}])" style="height: 100%; display: flex; flex-direction: column; cursor: pointer;">
+                            <div class="date">${prettyDate}</div>
+                            <div class="filename">${job.filename}</div>
+                            <div class="badges" style="margin-top: auto;">
+                                <div class="badge">${(job.duration || 0).toFixed(1)}s</div>
+                                <div class="badge">${(job.segments || []).length} Turns</div>
+                            </div>
+                        </div>
+                    `;
+                    grid.appendChild(card);
+                });
+            } catch (e) {
+                loader.textContent = "Failed to load history.";
+            }
+        }
+
+        // --- Dashboard Rendering (from JSON) ---
+        function renderDashboard(data) {
+            switchView('dashboard', null);
+            document.getElementById('dash-title').textContent = data.filename || data.metadata?.original_filename || "Call Analysis";
+
+            document.getElementById('stat-dur').textContent = (data.duration || data.metadata?.duration_seconds || 0).toFixed(1) + "s";
+            document.getElementById('stat-segs').textContent = (data.segments || []).length;
+            document.getElementById('stat-diar').textContent = data.metadata?.diarization_method || "--";
+            document.getElementById('dash-engine').textContent = data.metadata?.asr_engine || "Engine";
+
+            // Store segments globally for toggle functionality
+            window._dashboardSegments = data.segments || [];
+            window._showingRephrased = true;
+
+            const timeline = document.getElementById('dash-timeline');
+            timeline.innerHTML = '';
+            const hasRephrasedData = (data.segments || []).some(s => s.original_text && s.original_text !== s.text);
+            const toggleBtn = document.getElementById('transcript-toggle-btn');
+            if (toggleBtn) {
+                toggleBtn.style.display = hasRephrasedData ? 'inline-flex' : 'none';
+            }
+
+            (data.segments || []).forEach((seg, idx) => {
+                const role = seg.role || seg.speaker || 'unknown';
+                const t0 = seg.t0 !== undefined ? seg.t0 : 0;
+                const t1 = seg.t1 !== undefined ? seg.t1 : 0;
+
+                const div = document.createElement('div');
+                div.className = `message msg-${role}`;
+                div.setAttribute('data-time', t0);
+                div.setAttribute('data-end', t1);
+                div.setAttribute('data-seg-idx', idx);
+                div.innerHTML = `
+                    <div class="message-header">
+                        <span class="spk-tag">${role.toUpperCase()}</span>
+                        <span class="spk-time">[${t0.toFixed(1)}s - ${t1.toFixed(1)}s]</span>
+                    </div>
+                    <div class="spk-text">${seg.text || ''}</div>
+                `;
+                timeline.appendChild(div);
+            });
+
+            // Mark heated segments in transcript with 🔴 markers
+            if (data.emotion_analysis) {
+                const allHs = [...(data.emotion_analysis.agent_heated_segments || []),
+                ...(data.emotion_analysis.customer_heated_segments || [])];
+                allHs.forEach(hs => {
+                    const hStart = hs.start_seconds || 0;
+                    const hEnd = hs.end_seconds || 0;
+                    const msgDivs = timeline.querySelectorAll('.message[data-time]');
+                    msgDivs.forEach(md => {
+                        const t = parseFloat(md.getAttribute('data-time') || '0');
+                        const te = parseFloat(md.getAttribute('data-end') || '0');
+                        if (t <= hEnd + 2 && te >= hStart - 2) {
+                            const header = md.querySelector('.message-header');
+                            if (header && !header.querySelector('.heated-marker')) {
+                                const marker = document.createElement('span');
+                                marker.className = 'heated-marker';
+                                marker.textContent = '🔴';
+                                marker.title = `Heated (${hs.speaker}): pitch_z=${hs.pitch_z}, energy_z=${hs.energy_z}`;
+                                header.appendChild(marker);
+                            }
+                        }
+                    });
+                });
+            }
+
+            const sc = document.getElementById('summary-render-container');
+            sc.innerHTML = '';
+
+            const summary = data.summary;
+            if (!summary || typeof summary === 'string') {
+                sc.innerHTML = `<div style="color:var(--text-muted); padding: 20px;">Structured JSON summary unavailable.<br><br>${summary || ''}</div>`;
+                return;
+            }
+
+            function buildGroup(title, obj, isFinancial = false) {
+                if (!obj) return '';
+                let html = `<div class="metric-group">
+                    <div class="metric-header">${title}</div>
+                    <div class="metric-body"><div class="kv-grid">`;
+
+                for (let [k, v] of Object.entries(obj)) {
+                    const cleanKey = k.replace(/_/g, ' ');
+                    html += `
+                        <div class="kv-item">
+                            <div class="kv-key">${cleanKey}</div>
+                            <div class="kv-val ${isFinancial ? 'financial-val' : ''}">${formatMarkdownAndTimestamps(v)}</div>
+                        </div>
+                    `;
+                }
+                html += `</div></div></div>`;
+                return html;
+            }
+
+            let finalHtml = "";
+            if (summary.overview) {
+                finalHtml += `
+                    <div class="metric-group">
+                        <div class="metric-header">Call Overview</div>
+                        <div class="metric-body" style="font-size:0.95rem; line-height:1.6;">${formatMarkdownAndTimestamps(summary.overview)}</div>
+                    </div>
+                `;
+            }
+            finalHtml += buildGroup("Product & Service Pitch", summary.product_service_explained);
+            finalHtml += buildGroup("Financial Details", summary.financial_details, true);
+            finalHtml += buildGroup("Customer Analysis (Q&A)", summary.customer_analysis);
+            finalHtml += buildGroup("Conversion & Dropoff Analysis", summary.conversion_analysis);
+
+            // --- Emotion & Escalation Analysis Panel ---
+            const emotion = data.emotion_analysis;
+            if (emotion) {
+                const agentVoice = emotion.agent_raised_voice ? '<span style="color:#f87171">YES 🔴</span>' : '<span style="color:#4ade80">NO ✅</span>';
+                const custVoice = emotion.customer_raised_voice ? '<span style="color:#fb923c">YES 🔴</span>' : '<span style="color:#4ade80">NO ✅</span>';
+                const intensity = emotion.call_emotional_intensity_score || 0;
+                const intensityPct = Math.round(intensity * 100);
+                const intensityColor = intensity > 0.6 ? '#f87171' : intensity > 0.3 ? '#fbbf24' : '#4ade80';
+                const heatedDur = (emotion.total_heated_duration_seconds || 0).toFixed(1);
+
+                finalHtml += `
+                <div class="emotion-panel">
+                    <div class="emotion-panel-header">🎭 Emotion & Escalation Analysis</div>
+                    <div class="emotion-kpi-grid">
+                        <div class="emotion-kpi">
+                            <div class="kpi-value">${agentVoice}</div>
+                            <div class="kpi-label">Agent Raised Voice</div>
+                        </div>
+                        <div class="emotion-kpi">
+                            <div class="kpi-value">${custVoice}</div>
+                            <div class="kpi-label">Customer Raised Voice</div>
+                        </div>
+                        <div class="emotion-kpi">
+                            <div class="kpi-value" style="color:${intensityColor}">${intensityPct}%</div>
+                            <div class="kpi-label">Emotional Intensity</div>
+                        </div>
+                        <div class="emotion-kpi">
+                            <div class="kpi-value" style="color:#fbbf24">${heatedDur}s</div>
+                            <div class="kpi-label">Heated Duration</div>
+                        </div>
+                    </div>`;
+
+                // Escalation info
+                if (emotion.escalation_detected) {
+                    finalHtml += `
+                    <div style="padding:8px 20px; font-size:0.85rem; color:#f87171; background:rgba(239,68,68,0.06); border-top:1px solid rgba(239,68,68,0.15);">
+                        ⚠️ Escalation Detected — First escalator: <strong>${emotion.first_escalator || 'unknown'}</strong>
+                        | Longest streak: <strong>${emotion.longest_escalation_streak || 0}</strong> consecutive heated windows
+                    </div>`;
+                }
+
+                // Heated segments list
+                const allHeated = [...(emotion.agent_heated_segments || []), ...(emotion.customer_heated_segments || [])];
+                allHeated.sort((a, b) => (a.start_seconds || 0) - (b.start_seconds || 0));
+                if (allHeated.length > 0) {
+                    finalHtml += '<div style="border-top:1px solid var(--border)">';
+                    finalHtml += '<div style="padding:10px 20px; font-size:0.82rem; font-weight:600; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.5px;">Heated Segments</div>';
+                    allHeated.forEach(hs => {
+                        const spkClass = hs.speaker === 'agent' ? 'agent' : 'customer';
+                        const truncText = (hs.text || '').substring(0, 150) + ((hs.text || '').length > 150 ? '...' : '');
+                        finalHtml += `
+                        <div class="heated-segment-entry">
+                            <span class="heated-tag ${spkClass}">${hs.speaker}</span>
+                            <span class="heated-ts">${hs.start_time || ''}</span>
+                            <span class="heated-text">${truncText}</span>
+                        </div>`;
+                    });
+                    finalHtml += '</div>';
+                }
+                finalHtml += '</div>';
+            }
+
+            // --- Emotion Timeline Panel (Phase 30) ---
+            if (emotion && emotion.emotion_timeline && emotion.emotion_timeline.length > 0) {
+                const timeline = emotion.emotion_timeline;
+                const totalDuration = Math.max(...timeline.map(e => e.end_seconds || 0)) || 1;
+
+                const emotionColors = {
+                    calm: '#3b82f6', engaged: '#22c55e', hesitant: '#eab308',
+                    frustrated: '#f97316', angry: '#ef4444', confused: '#a855f7'
+                };
+
+                // Build bars per speaker
+                const buildBar = (speaker) => {
+                    const entries = timeline.filter(e => e.speaker === speaker);
+                    if (entries.length === 0) return '<div class="timeline-bar-container"><div class="timeline-segment" data-emotion="calm" style="flex:1"></div></div>';
+                    let bar = '<div class="timeline-bar-container">';
+                    entries.forEach(e => {
+                        const dur = (e.end_seconds || e.timestamp_seconds + 0.5) - e.timestamp_seconds;
+                        const pct = Math.max((dur / totalDuration) * 100, 0.5);
+                        const label = dur > totalDuration * 0.05 ? e.emotion : '';
+                        bar += `<div class="timeline-segment" data-emotion="${e.emotion}" style="flex:${pct}" title="${e.emotion_label} (${e.timestamp} - ${e.end_timestamp}) ${Math.round(e.confidence * 100)}%">${label}</div>`;
+                    });
+                    bar += '</div>';
+                    return bar;
+                };
+
+                // Metrics
+                const switches = emotion.emotion_switch_count || 0;
+                const volatility = emotion.emotional_volatility_score || 0;
+                const domAgent = emotion.dominant_agent_emotion || 'calm';
+                const domCustomer = emotion.dominant_customer_emotion || 'calm';
+                const calming = emotion.agent_calming_effectiveness;
+                const peak = emotion.highest_emotional_intensity_moment;
+
+                const volatilityColor = volatility > 0.5 ? '#f87171' : volatility > 0.25 ? '#fbbf24' : '#4ade80';
+                const domAgentColor = emotionColors[domAgent] || '#3b82f6';
+                const domCustColor = emotionColors[domCustomer] || '#3b82f6';
+
+                finalHtml += `
+                <div class="emotion-panel" style="margin-top:12px">
+                    <div class="emotion-panel-header">🧠 Emotion Timeline & Insights</div>
+                    <div style="padding:12px 20px 4px">
+                        <div class="timeline-row">
+                            <div class="timeline-label">Agent</div>
+                            ${buildBar('agent')}
+                        </div>
+                        <div class="timeline-row">
+                            <div class="timeline-label">Customer</div>
+                            ${buildBar('customer')}
+                        </div>
+                    </div>
+                    <div class="timeline-legend">
+                        ${Object.entries(emotionColors).map(([e, c]) =>
+                    `<div class="timeline-legend-item"><div class="timeline-legend-dot" style="background:${c}"></div>${e}</div>`
+                ).join('')}
+                    </div>
+                    <div style="border-top:1px solid var(--border)">
+                        <div class="emotion-metrics-grid">
+                            <div class="emotion-metric-card">
+                                <div class="metric-value">${switches}</div>
+                                <div class="metric-label">Emotion Switches</div>
+                            </div>
+                            <div class="emotion-metric-card">
+                                <div class="metric-value" style="color:${volatilityColor}">${Math.round(volatility * 100)}%</div>
+                                <div class="metric-label">Volatility</div>
+                            </div>
+                            <div class="emotion-metric-card">
+                                <div class="metric-value" style="color:${domAgentColor}">${domAgent}</div>
+                                <div class="metric-label">Agent Dominant</div>
+                            </div>
+                            <div class="emotion-metric-card">
+                                <div class="metric-value" style="color:${domCustColor}">${domCustomer}</div>
+                                <div class="metric-label">Customer Dominant</div>
+                            </div>
+                            ${calming !== null && calming !== undefined ? `
+                            <div class="emotion-metric-card">
+                                <div class="metric-value" style="color:#4ade80">${Math.round(calming * 100)}%</div>
+                                <div class="metric-label">Calming Effect.</div>
+                            </div>` : ''}
+                            ${peak ? `
+                            <div class="emotion-metric-card">
+                                <div class="metric-value" style="color:${emotionColors[peak.emotion] || '#fbbf24'}">${peak.emotion}</div>
+                                <div class="metric-label">Peak @ ${peak.timestamp}</div>
+                            </div>` : ''}
+                        </div>
+                    </div>
+                </div>`;
+            }
+
+            // --- Sarcasm Detection Panel (Phase 30) ---
+            const sarcasm = data.sarcasm_analysis;
+            if (sarcasm && sarcasm.possible_sarcasm_segments && sarcasm.possible_sarcasm_segments.length > 0) {
+                finalHtml += `
+                <div class="emotion-panel" style="margin-top:12px">
+                    <div class="emotion-panel-header">🎭 Possible Sarcasm Detected</div>`;
+                sarcasm.possible_sarcasm_segments.forEach(s => {
+                    const phrase = (s.phrase || '').substring(0, 150);
+                    const conf = Math.round((s.confidence || 0) * 100);
+                    const signals = s.signals || {};
+                    finalHtml += `
+                    <div class="sarcasm-entry">
+                        <div class="sarcasm-header">
+                            <span class="trigger-ts">${s.timestamp}</span>
+                            <span class="trigger-speaker">${s.speaker}</span>
+                            <span class="sarcasm-confidence">${conf}% match</span>
+                        </div>
+                        <div class="sarcasm-phrase">"${phrase}"</div>
+                        <div class="sarcasm-signals">
+                            <span class="sarcasm-signal">📝 Text: ${signals.text_sentiment || '?'}</span>
+                            <span class="sarcasm-signal">🎤 Acoustic: ${signals.acoustic_emotion || '?'}</span>
+                            <span class="sarcasm-signal">💬 Context: ${signals.previous_context || '?'}</span>
+                        </div>
+                    </div>`;
+                });
+                finalHtml += '</div>';
+            }
+
+            const triggers = data.trigger_phrases;
+            if (triggers) {
+                const hasData = (triggers.negative_triggers || []).length > 0 ||
+                    (triggers.positive_engagement_phrases || []).length > 0 ||
+                    (triggers.hesitation_phrases || []).length > 0 ||
+                    (triggers.business_insights || []).length > 0;
+                if (hasData) {
+                    finalHtml += '<div class="emotion-panel" style="margin-top:12px">';
+                    finalHtml += '<div class="emotion-panel-header">🔍 Business Insights & Key Phrases</div>';
+
+                    if ((triggers.negative_triggers || []).length > 0) {
+                        finalHtml += '<div class="trigger-section"><div class="trigger-section-title">🔴 Negative Triggers (Escalation Phrases)</div>';
+                        triggers.negative_triggers.forEach(t => {
+                            const trunc = (t.phrase || '').substring(0, 120);
+                            finalHtml += `<div class="trigger-entry negative"><span class="trigger-ts">${t.timestamp}</span><span class="trigger-speaker">${t.speaker}</span><span class="trigger-text">${trunc}</span></div>`;
+                        });
+                        finalHtml += '</div>';
+                    }
+
+                    if ((triggers.positive_engagement_phrases || []).length > 0) {
+                        finalHtml += '<div class="trigger-section"><div class="trigger-section-title">🟢 Positive Engagement Phrases</div>';
+                        triggers.positive_engagement_phrases.forEach(t => {
+                            const trunc = (t.phrase || '').substring(0, 120);
+                            finalHtml += `<div class="trigger-entry positive"><span class="trigger-ts">${t.timestamp}</span><span class="trigger-speaker">agent</span><span class="trigger-text">${trunc}</span></div>`;
+                        });
+                        finalHtml += '</div>';
+                    }
+
+                    // Business insights grouped by category (LLM-extracted)
+                    if ((triggers.business_insights || []).length > 0) {
+                        const byCat = {};
+                        triggers.business_insights.forEach(bi => {
+                            const label = bi.category_label || bi.category || 'Other';
+                            if (!byCat[label]) byCat[label] = [];
+                            byCat[label].push(bi);
+                        });
+                        for (const [label, items] of Object.entries(byCat)) {
+                            finalHtml += `<div class="trigger-section"><div class="trigger-section-title">${label}</div>`;
+                            items.forEach(bi => {
+                                const quote = (bi.verbatim_quote || '').substring(0, 140);
+                                const plainTime = bi.timestamp ? bi.timestamp.replace(/[\[\]]/g, '') : '';
+                                finalHtml += `<div class="insight-entry">
+                                    <div class="insight-header">
+                                        <a href="#" class="citation-link trigger-ts" onclick="event.preventDefault(); scrollToTime('${plainTime}')" title="Scroll to ${plainTime}">${bi.timestamp}</a>
+                                        <span class="trigger-speaker">${bi.speaker}</span>
+                                        <span class="insight-text">${bi.insight}</span>
+                                    </div>
+                                    <div class="insight-quote">"${quote}"</div>
+                                </div>`;
+                            });
+                            finalHtml += '</div>';
+                        }
+                    }
+
+                    // Hesitation phrases grouped by category (rule-based)
+                    if ((triggers.hesitation_phrases || []).length > 0) {
+                        const byCat = {};
+                        triggers.hesitation_phrases.forEach(hp => {
+                            const label = hp.category_label || hp.category || 'Hesitation';
+                            if (!byCat[label]) byCat[label] = [];
+                            byCat[label].push(hp);
+                        });
+                        finalHtml += '<div class="trigger-section"><div class="trigger-section-title">⏸️ Hesitation / Resistance Phrases</div>';
+                        for (const [label, phrases] of Object.entries(byCat)) {
+                            finalHtml += `<div style="margin:6px 0 4px; font-size:0.75rem; color:#a3a3a3; font-weight:500;">${label}</div>`;
+                            phrases.forEach(hp => {
+                                const trunc = (hp.phrase || '').substring(0, 120);
+                                const matchBadge = hp.marker ? `<span class="match-badge">${hp.marker}</span>` : '';
+                                finalHtml += `<div class="trigger-entry hesitation"><span class="trigger-ts">${hp.timestamp}</span><span class="trigger-speaker">customer</span><span class="trigger-text">${trunc}</span>${matchBadge}</div>`;
+                            });
+                        }
+                        finalHtml += '</div>';
+                    }
+
+                    finalHtml += '</div>';
+                }
+            }
+            sc.innerHTML = finalHtml;
+        }
+
+        // --- Toggle Original ↔ Rephrased Transcript ---
+        function toggleTranscriptView() {
+            const segments = window._dashboardSegments;
+            if (!segments || !segments.length) return;
+
+            const btn = document.getElementById('transcript-toggle-btn');
+            const showingRephrased = window._showingRephrased;
+
+            // Toggle state
+            window._showingRephrased = !showingRephrased;
+            const showOriginal = showingRephrased; // we're flipping
+
+            // Update button appearance
+            if (btn) {
+                if (showOriginal) {
+                    btn.classList.remove('active');
+                    btn.innerHTML = '<span class="toggle-icon">📄</span> Original';
+                } else {
+                    btn.classList.add('active');
+                    btn.innerHTML = '<span class="toggle-icon">✏️</span> Rephrased';
+                }
+            }
+
+            // Swap text in each segment div
+            const timeline = document.getElementById('dash-timeline');
+            if (!timeline) return;
+
+            const msgDivs = timeline.querySelectorAll('.message[data-seg-idx]');
+            msgDivs.forEach(div => {
+                const idx = parseInt(div.getAttribute('data-seg-idx'), 10);
+                const seg = segments[idx];
+                if (!seg) return;
+
+                const textEl = div.querySelector('.spk-text');
+                if (!textEl) return;
+
+                const newText = showOriginal
+                    ? (seg.original_text || seg.text)
+                    : seg.text;
+                const oldText = textEl.textContent;
+
+                if (newText !== oldText) {
+                    textEl.textContent = newText;
+                    // Flash animation on changed segments
+                    div.classList.remove('seg-changed');
+                    void div.offsetWidth; // force reflow
+                    div.classList.add('seg-changed');
+                }
+            });
+        }
+
+        // --- Queue Job Cancel ---
+        async function cancelJob(jobId) {
+            try {
+                const res = await fetch(`/api/queue/${jobId}`, { method: 'DELETE' });
+                const data = await res.json();
+                const statusEl = document.getElementById(`queue-status-${jobId}`);
+                const progressEl = document.getElementById(`queue-progress-${jobId}`);
+                const cancelBtn = document.getElementById(`queue-cancel-${jobId}`);
+                const barEl = document.getElementById(`queue-bar-${jobId}`);
+
+                if (statusEl) {
+                    statusEl.textContent = data.status === 'cancelled' ? 'Cancelled' : data.status;
+                    statusEl.style.color = '#fca5a5';
+                    statusEl.style.background = 'rgba(239, 68, 68, 0.1)';
+                }
+                if (progressEl) progressEl.textContent = data.message || 'Cancelled';
+                if (cancelBtn) cancelBtn.style.display = 'none';
+                if (barEl) barEl.style.background = '#ef4444';
+
+                delete activeQueue[jobId];
+                updateQueueCount();
+            } catch (err) {
+                console.error('Cancel failed:', err);
+            }
+        }
+
+        // --- Restore Active Queue on page load ---
+        async function restoreSessionQueue() {
+            try {
+                const res = await fetch('/api/queue');
+                const data = await res.json();
+                const activeJobs = data.active || {};
+
+                const jobIds = Object.keys(activeJobs);
+                if (jobIds.length === 0) return;
+
+                // Show queue container, hide dropzone
+                document.getElementById('queue-container').style.display = 'block';
+                document.getElementById('drop-zone').style.display = 'none';
+
+                // Switch to upload tab so the user sees the queue
+                switchView('upload');
+
+                for (const jobId of jobIds) {
+                    const job = activeJobs[jobId];
+                    const filename = job.original_filename || job.filename || 'Unknown File';
+
+                    // Create the UI element
+                    createQueueItemUI(jobId, filename, true);
+                    activeQueue[jobId] = { status: job.status, filename: filename };
+                    updateQueueCount();
+
+                    // Immediately update with current status from the server
+                    const statusEl = document.getElementById(`queue-status-${jobId}`);
+                    const progressEl = document.getElementById(`queue-progress-${jobId}`);
+                    const barEl = document.getElementById(`queue-bar-${jobId}`);
+
+                    if (job.status === 'processing' && statusEl) {
+                        statusEl.textContent = 'Processing';
+                        statusEl.style.color = '#fbbf24';
+                        statusEl.style.background = 'rgba(251, 191, 36, 0.1)';
+                    } else if (job.status === 'queued' && statusEl) {
+                        statusEl.textContent = 'Queued';
+                        statusEl.style.color = '#a1a1aa';
+                        statusEl.style.background = 'rgba(161, 161, 170, 0.1)';
+                    }
+                    if (progressEl) progressEl.textContent = job.progress || 'Restoring...';
+                    if (barEl && job.progress_percent !== undefined) {
+                        barEl.style.width = `${job.progress_percent}%`;
+                    }
+
+                    // Start polling immediately
+                    pollJob(jobId);
+                }
+            } catch (err) {
+                console.error('Failed to restore session queue:', err);
+            }
+        }
+
+        // Initialize session and views
+        async function bootSequence() {
+            await restoreSessionQueue();
+            initOverview();
+        }
+        bootSequence();
+    </script>
+</body>
+
+</html>

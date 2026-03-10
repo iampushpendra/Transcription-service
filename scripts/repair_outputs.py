@@ -1,9 +1,15 @@
 import os
 import json
+import sys
+
+# Ensure pipeline modules can be natively imported from the root dir
+sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
 from pipeline.config import PipelineConfig
 from pipeline.reconstruct import summarize_call_structured, format_structured_summary
 
-OUTPUTS_DIR = "outputs"
+# Outputs dir is in the project root, one level up from scripts/
+OUTPUTS_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "outputs")
 
 def repair():
     cfg = PipelineConfig()

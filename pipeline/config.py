@@ -52,16 +52,20 @@ class PipelineConfig:
     whisper_model: str = "large-v3"
     language: str = "hi"
     
-    # Expanded prompt with specific loan settlement terminology
+    # Expanded prompt with specific loan settlement terminology from FREED knowledge base
     initial_prompt: str = (
-        "This is a Hindi-Hinglish financial advisory sales call for FREED. "
-        "Terms: Debt Consolidation, single EMI, Debt Resolution, loan settlement 60 percent, "
-        "outstanding amount, processing fees, one-time fees, approval, credit card, home loan, "
-        "SBI, ICICI, Experian, CIBIL, credit report, recovery agent, harassment calls, "
-        "DRA certificate, authorization letter, Special Purpose Account, SPA, Debt Management Plan, "
-        "DMP, Self Saving Program, Virtual Account, One-Time Settlement, OTS, Non-Performing Asset, "
-        "NPA, NACH, e-Mandate, No Dues Certificate, NDC, Legal Notice, SARFAESI, Loan Maafi, "
-        "Write-off, Bounce Charges, Penal Charges, Overdue, Default, Foreclosure."
+        "This is a Hindi-Hinglish financial advisory sales call for FREED — India's first debt relief platform. "
+        "FREED offers: Debt Resolution Program (DRP) — settlement at ~45% outstanding with 15%+GST service fee; "
+        "Debt Consolidation Program (DCP) — multiple loans merged into one EMI via third-party lender; "
+        "Debt Elimination Program (DEP) — structured accelerated repayment. "
+        "Key terms: SPA (Special Purpose Account / escrow account), CIBIL score, Experian credit report, "
+        "CHPP (Creditor Harassment Protection Programme), FREED Shield, i-FREED app, "
+        "DRA certificate, authorization letter, NACH, e-Mandate, "
+        "OTS (One-Time Settlement), NPA (Non-Performing Asset), NDC (No Dues Certificate), "
+        "evaluation fee, platform fee, service fee, settlement letter, principal amount, "
+        "delinquency, waiver, bounce charges, penal charges, foreclosure, write-off, "
+        "SARFAESI, Legal Notice, recovery agent, home visit, borrower rights, "
+        "Loan Maafi, overdue, default, NBFC, SBI, ICICI, HDFC, Axis Bank."
     )
     
     # Hallucination Filters
@@ -69,59 +73,77 @@ class PipelineConfig:
         "subtitles by", "amara.org", "thanks for watching", "nan", "subscribe"
     ])
 
-    # Terminology Normalization Map (Aggressive Contextual Filtering)
+    # Terminology Normalization Map — enriched from FREED knowledge base
     term_replacements: dict[str, str] = field(default_factory=lambda: {
-        # Strict Terminology
+        # FREED Programs
+        "debt resolution program": "Debt Resolution Program",
+        "drp": "DRP",
+        "debt consolidation program": "Debt Consolidation Program",
+        "dcp": "DCP",
+        "debt elimination program": "Debt Elimination Program",
+        "dep": "DEP",
+
+        # Core Product Terminology
         "civil score": "CIBIL score",
         "civil": "CIBIL",
-        "knocks": "NOC",
-        "noc": "NOC",
-        "no objection certificate": "NOC",
-        "settlement later": "settlement letter",
-        "settlement amount": "settlement amount",
-        "principle amount": "principal amount",
-        "weaver": "waiver",
-        "bounce charge": "bounce charges",
-        "harassment": "harassment",
-        "emi": "EMI",
-        "emis": "EMIs",
-        "nbfc": "NBFC",
-        "nach": "NACH",
-        "debt consolidation": "Debt Consolidation",
-        "resolution": "Resolution",
+        "cibil": "CIBIL",
         "experian": "Experian",
-        "dra": "DRA",
-        "authorization letter": "authorization letter",
-        "mandate": "mandate",
-        "e-mandate": "e-Mandate",
-        "spa": "SPA",
         "special purpose account": "Special Purpose Account",
+        "spa": "SPA",
+        "chpp": "CHPP",
+        "creditor harassment protection programme": "CHPP",
+        "freed shield": "FREED Shield",
+        "i freed": "i-FREED",
+        "i-freed": "i-FREED",
+        "ifreed": "i-FREED",
+
+        # Settlement & Fees
+        "settlement later": "settlement letter",
+        "principle amount": "principal amount",
+        "evaluation fees": "evaluation fee",
+        "platform fees": "platform fee",
+        "service fees": "service fee",
+        "one time settlement": "One-Time Settlement",
+        "ots": "OTS",
+
+        # Debt & Account Terms
+        "nach": "NACH",
+        "e-mandate": "e-Mandate",
+        "e mandate": "e-Mandate",
         "dmp": "DMP",
         "debt management plan": "Debt Management Plan",
-        "self saving program": "Self Saving Program",
-        "virtual account": "Virtual Account",
-        "ots": "OTS",
-        "one time settlement": "One-Time Settlement",
         "npa": "NPA",
         "non performing asset": "Non-Performing Asset",
         "ndc": "NDC",
         "no dues certificate": "No Dues Certificate",
-        "legal notice": "legal notice",
+        "noc": "NOC",
+        "knocks": "NOC",
+        "no objection certificate": "NOC",
+        "nbfc": "NBFC",
+        "emi": "EMI",
+        "emis": "EMIs",
+        "waiver": "waiver",
+        "weaver": "waiver",
+        "bounce charge": "bounce charges",
+        "dra": "DRA",
         "sarfaesi": "SARFAESI",
         "loan maafi": "Loan Maafi",
         "write off": "write-off",
-        "penal charges": "penal charges",
-        "overdue": "overdue",
-        "default": "default",
+        "debt consolidation": "Debt Consolidation",
         "foreclosure": "foreclosure",
+        "delinquency": "delinquency",
+        "authorization letter": "authorization letter",
+        "virtual account": "Virtual Account",
+        "self saving program": "Self Saving Program",
 
-        # Common Homophones & Context-Specific Mis-transcriptions
+        # Common Homophones & Mis-transcriptions
         "views": "dues",
         "due's": "dues",
         "news": "dues",
         "bound": "bounce",
         "bone charge": "bounce charge",
-        "loan account": "loan account"
+        "freed": "FREED",
+        "free d": "FREED",
     })
 
     # Reconstruction

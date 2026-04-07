@@ -427,7 +427,7 @@ def summarize_call_structured(
     import openai
     from pydantic import BaseModel, Field
 
-    print("🤖 Generating Structured LLM Summary...")
+    print("\U0001f916 Generating Structured LLM Summary...")
 
     if not transcript:
         return {"error": "Empty transcript"}
@@ -441,7 +441,7 @@ def summarize_call_structured(
         lines.append(f"[{timestamp}] {role_label}: {seg.get('text', '')}")
     transcript_text = "\n".join(lines)
 
-    # ── Build optional Acoustic & Behavioral Context block ─────────────────
+    # Build optional Acoustic & Behavioral Context block
     def _build_context_block(ea: dict | None, tp: dict | None) -> str:
         if not ea and not tp:
             return ""
@@ -454,20 +454,15 @@ def summarize_call_structured(
             switches  = ea.get("emotion_switch_count", 0)
             peak      = ea.get("highest_emotional_intensity_moment")
 
-            parts.append(
-                f"Dominant Emotions — Agent: {dom_agent} | Customer: {dom_cust}"
-            )
+            parts.append(f"Dominant Emotions \u2014 Agent: {dom_agent} | Customer: {dom_cust}")
             if vol is not None:
-                parts.append(
-                    f"Emotional Volatility: {round(vol * 100)}% ({switches} state switches)"
-                )
+                parts.append(f"Emotional Volatility: {round(vol * 100)}% ({switches} state switches)")
             if peak:
                 ts = peak.get("timestamp", "")
                 spk = peak.get("speaker", "")
                 emo = peak.get("emotion_label", peak.get("emotion", ""))
                 parts.append(f"Peak Intensity: {emo} @ {ts} ({spk})")
 
-            # Heated escalation moments (top 3)
             heated_all = (
                 ea.get("agent_heated_segments", [])
                 + ea.get("customer_heated_segments", [])
@@ -483,7 +478,6 @@ def summarize_call_structured(
                     parts.append(f"  - {ts_h} {spk_h.upper()} (energy_z={ez}, pitch_z={pz})")
 
         if tp:
-            # Hesitation phrases (top 5, grouped by category)
             hes = tp.get("hesitation_phrases", [])
             if hes:
                 from collections import defaultdict
@@ -495,9 +489,8 @@ def summarize_call_structured(
                     for item in items[:2]:
                         ts_h = item.get("timestamp", "")
                         phrase = (item.get("phrase", "") or "")[:70]
-                        parts.append(f"  - {ts_h} [{cat}] \"{phrase}\"")
+                        parts.append(f'  - {ts_h} [{cat}] "{phrase}"')
 
-            # Business insight signals (objections + buying triggers)
             insights = tp.get("business_insights", [])
             signal_cats = {"customer_objections", "buying_triggers", "unresolved_concerns"}
             signals = [i for i in insights if i.get("category") in signal_cats]
@@ -508,121 +501,248 @@ def summarize_call_structured(
                     ts_s = sig.get("timestamp", "")
                     quote = (sig.get("verbatim_quote", "") or "")[:80]
                     insight = sig.get("insight", "")
-                    parts.append(f"  - {cat_label} {ts_s}: \"{quote}\" — {insight}")
+                    parts.append(f'  - {cat_label} {ts_s}: "{quote}" \u2014 {insight}')
 
         return "\n".join(parts)
 
     context_block = _build_context_block(emotion_analysis, trigger_phrases)
     has_context = bool(context_block.strip())
 
-    # ── System prompt ───────────────────────────────────────────────────────
     context_instruction = (
         "\n\nACOUSTIC CONTEXT USAGE (CRITICAL):\n"
-        "You are provided with an '=== ACOUSTIC & BEHAVIORAL CONTEXT ===' block above the transcript.\n"
-        "- You MUST cross-reference this block when filling ALL evidence fields "
-        "(pain_point_evidence, state_of_mind_evidence, conversion_evidence, customer_intent_signals).\n"
-        "- When citing a hesitation signal or heated moment, include its timestamp and what it reveals.\n"
-        "- Dominant emotions and volatility score MUST inform the customer_state_of_mind_category choice.\n"
+        "You are provided with an '=== ACOUSTIC & BEHAVIORAL CONTEXT ==' block above the transcript.\n"
+        "- Cross-reference this block when filling ALL evidence fields (pain_point_evidence, state_of_mind_evidence, conversion_evidence, customer_intent_signals).\n"
+        "- Cite hesitation signals or heated moments with timestamp and what it reveals.\n"
+        "- Dominant emotions and volatility MUST inform customer_state_of_mind_category.\n"
         "- Business signals (objections/triggers) MUST be reflected in conversion_analysis.\n"
-        "- Keep all answers crisp — enrich with acoustic evidence, do NOT expand word count unnecessarily."
+        "- Keep all answers crisp \u2014 enrich with acoustic evidence, do NOT expand unnecessarily."
     ) if has_context else ""
 
+    checklist_reference = (
+        "\nAGENT SALES CALL CHECKLIST (21 items to evaluate):\n"
+        "  BASICS: (1) Call opening \u2014 greeting + intro + reason for call. (2) Confirm customer full name.\n"
+        "  DEBT UNDERSTANDING: (3) Checked total outstanding unsecured loans (PL + CC). (4) Checked last payment date. "
+        "(5) Identified hardship/reason for non-payment. (6) Empathized with customer.\n"
+        "  AFFORDABILITY: (7) Confirmed income source + monthly affordability + future funds possibility.\n"
+        "  PROGRAM PITCH: (8) Explained how FREED works + suitable program. (9) If DRP: settlement concept clearly explained. "
+        "(10) Explained program flow \u2014 SPA + settlement conditions. (11) Explained estimated savings + service fee + tenure.\n"
+        "  ACCOUNT CHECKS: (12) Checked auto-debit/NACH status + salary account linked.\n"
+        "  VALUE & FEES: (13) Explained CHPP, Shield, i-FREED app, support, negotiation benefits. (14) Explained platform fee.\n"
+        "  COMPLIANCE: (15) Discussed collection calls + borrower rights (timings, WhatsApp, visit docs, recording). "
+        "(16) Discussed credit score impact (short-term dip, long-term recovery).\n"
+        "  VERIFICATION: (17) Re-verified via credit report \u2014 debt load + last payment date + 3 good-faith payments. "
+        "(18) Discussed monthly budget + total savings required.\n"
+        "  CLOSURE: (19) Sent the agreement. (20) Collected evaluation fee. (21) Set up E-mandate (monthly SPA contribution).\n"
+    )
+
+    freed_domain_context = (
+        "FREED DOMAIN CONTEXT:\n"
+        "- DRP: settlement at ~45% of enrolled debt. Service fee: 15%+GST. Total SPA savings required: ~62.7%.\n"
+        "- DCP: multiple EMIs merged into one via third-party lender.\n"
+        "- DEP: structured accelerated repayment plan.\n"
+        "- SPA = Special Purpose Account (escrow account for monthly savings toward settlement).\n"
+        "- CHPP = Creditor Harassment Protection Programme. FREED Shield = legal protection. i-FREED = customer app.\n"
+        "- Platform fee: 10%+GST of monthly SPA contribution. Evaluation fee = one-time onboarding fee.\n"
+        "- Settlement timeline: 2-3 years typically. Settlement triggered when SPA ~45% of debt AND creditor agrees.\n"
+        "- Borrower Rights: calls only 8AM-7PM, no Sunday/holiday obligation, record all calls, no payment date commitment.\n"
+        "- DRA visit: must carry Authorization Letter, Company ID, DRA Certificate, Recovery Notice.\n"
+        "- CALL TYPE: First Call (new prospect), Follow-Up Call (existing prospect re-engagement), "
+        "or Existing Customer Call (enrolled customer seeking support).\n"
+    )
+
     system_prompt = (
-        "Below are notes from different sections of one long Hindi financial advisory call.\n\n"
-        "(prerequisite context: \n"
-        "the financial advisor is from FREED offering \n"
-        "Debt Consolidation and Debt Resolution)\n\n"
-        "Your task:\n"
-        "Create a detailed call brief that can be handed to another sales representative.\n\n"
-        "REQUIREMENTS:\n"
-        "- Do NOT hallucinate\n"
-        "- Do NOT assume missing details\n"
-        "- Do NOT speculate or add fluff\n"
-        "- Preserve all financial numbers exactly\n"
-        "- If unclear, write \"Not clearly specified\"\n"
-        "- Professional English only\n"
-        "- Every section must be CRISP, CONCISE, and FACTUAL\n"
-        "- Use bullet points (- ) for every multi-item field — NEVER use paragraphs\n\n"
-        "FORMATTING RULES (CRITICAL):\n"
-        "- For EVERY field that has multiple points, items, or pieces of information, format each as a SEPARATE bullet point starting with '- '.\n"
-        "- Use a newline (\\n) before each bullet point so they appear as separate lines.\n"
-        "- NEVER pack multiple distinct points into a single long paragraph. Each separate fact, detail, or observation gets its own line.\n"
-        "- For 'main_points_pitched', 'resolved_and_unresolved_questions', 'details_shared', 'benefits_mentioned', 'conditions_mentioned', 'customer_intent_signals', 'major_keywords' — you MUST use bullet points.\n\n"
-        "OVERVIEW RULES (CRITICAL):\n"
-        "- The 'overview' field MUST explicitly list all customer pain points as a bullet sub-list.\n"
-        "- Format: Start with a 1-2 sentence call summary, then:\\n- Pain Point 1\\n- Pain Point 2\\n...\n"
-        "- If no pain points are identified, explicitly state: 'No specific pain points mentioned in the call.'\n\n"
-        "NUMERIC DEDUPLICATION (CRITICAL):\n"
-        "- When the same debt/loan amount is mentioned multiple times in the call (e.g., by both agent and customer), count it ONLY ONCE at the highest confirmed value.\n"
-        "- For 'total_identified_debt_inr': Sum UNIQUE loan accounts by their outstanding amounts. If a customer has 3 loans with 3 different outstandings, add them once each. Do NOT add the same loan's amount multiple times because it was discussed at different points.\n"
-        "- If the agent mentions '₹5 lakh' and the customer also confirms '₹5 lakh' for the same loan — that is ONE occurrence of ₹5,00,000, NOT two.\n"
-        "- For 'other_numbers_with_context': Only list numbers that are NOT already captured in loan_amounts, interest_rates, emis, tenure, or fees_or_charges. Avoid repeating the same figure across fields.\n\n"
-        "The brief MUST include:\n"
-        "1. Overview of Discussion\n"
-        "2. Product/Service Explained\n"
-        "3. Financial Details Discussed\n"
-        "5. Detailed answers to:\n"
-        "   a. Biggest pain point of the customer\n"
-        "   b. Which aspect of the program appealed most and when\n"
-        "   c. Main points pitched\n"
-        "   d. Customer questions resolved/unresolved\n"
-        "   e. Customer state of mind\n\n"
-        "If information is missing, explicitly write:\n"
-        "\"No information mentioned in the call.\"\n"
-        "- CITATIONS: When referencing a specific detail (number, keyword, observation), include the exact transcript timestamp as a standalone reference like `[MM:SS]` or `[HH:MM:SS]` immediately after the statement or clause it supports. Use the timestamps from the provided notes, do NOT invent timestamps. Example: 'The total debt is 9,58,730 rupees [00:00:14]'.\n"
-        "- SPEAKER ATTRIBUTION: You MUST carefully read whether a line was spoken by the AGENT or the CUSTOMER. Do NOT falsely attribute Agent statements (e.g. pitch points, settlement rules) as being said or requested by the Customer. When making a citation, explicitly mention who said it if relevant (AGENT) or (CUSTOMER).\n"
-        "6. Conversion & Dropoff Analysis: Did the customer enroll or agree to proceed? If not, what specific objections, hesitations, or moments caused the dropoff? What could the agent have done differently to convert? Include precise timestamps.\n"
-        "7. Call Categories with Evidence: For each classification (pain point, sentiment, lead probability), you MUST also provide an evidence field citing the specific conversation moments, quotes, and timestamps that justify the classification. Do not just classify — explain WHY with references.\n"
-        "8. Major Keywords: Each keyword must include a timestamp and a brief one-line context explaining its significance. Format: 'Keyword [MM:SS] — Brief explanation of why this keyword matters in context.'"
+        "You are an expert call analyst for FREED \u2014 India's leading debt relief platform.\n\n"
+        + freed_domain_context
+        + "\nYour output serves: (1) Sales managers for coaching & handoff, "
+        "(2) Audit team for compliance review, (3) Next agent picking up this prospect.\n\n"
+        "HARD REQUIREMENTS:\n"
+        "- Do NOT hallucinate. Do NOT assume missing details. Do NOT add fluff.\n"
+        "- Preserve all financial numbers exactly as spoken.\n"
+        "- If unclear, write \"Not clearly specified in the call.\"\n"
+        "- Professional English only. Every field must be CRISP, FACTUAL, and EVIDENCED.\n"
+        "- Use bullet points (- ) for every multi-value field \u2014 NEVER use paragraphs.\n\n"
+        "FORMATTING:\n"
+        "- Each distinct fact/observation gets its own bullet line starting with '- '.\n"
+        "- NEVER pack multiple points into one paragraph.\n"
+        "- CITATIONS: After any specific detail, add transcript timestamp `[MM:SS]` immediately. "
+        "Use only timestamps from the transcript \u2014 never invent them.\n"
+        "- SPEAKER ATTRIBUTION: Clearly distinguish AGENT vs CUSTOMER speech. "
+        "Do NOT attribute agent pitch points to the customer.\n\n"
+        "OVERVIEW FIELD:\n"
+        "- Start with a 1-2 sentence call summary (call type + outcome).\n"
+        "- Then list all customer pain points as separate bullets.\n"
+        "- Format: Summary sentence.\\n- Pain Point 1\\n- Pain Point 2\\n...\n\n"
+        "NUMERIC DEDUPLICATION:\n"
+        "- Count each unique loan account ONCE at its highest confirmed value.\n"
+        "- Do NOT add the same amount twice if mentioned by both agent and customer.\n"
+        "- Avoid repeating the same figure across multiple fields.\n\n"
+        "AGENT CHECKLIST EVALUATION:\n"
+        + checklist_reference
+        + "\nFor each of the 21 items, evaluate and return: item description, category, "
+        "status (Completed/Partially Completed/Not Done/N/A - Follow-up call), "
+        "and 1-line evidence (quote+timestamp if done, gap explanation if not).\n"
+        "For FOLLOW-UP or EXISTING CUSTOMER calls, closure items (19-21) if truly not applicable: mark 'N/A - Follow-up call'.\n\n"
+        "AUDIT COMPLIANCE FLAGS:\n"
+        "Flag: false promises, threatening language, unauthorized commitments on behalf of FREED, "
+        "incorrect fee/settlement figures, failure to disclose credit score impact, failure to mention borrower rights, "
+        "misrepresentation of FREED's service.\n\n"
+        "OBJECTION HANDLING: For each major customer objection, classify agent response as: "
+        "'Well Handled' (resolved with correct info + empathy), 'Partially Handled' (addressed but incomplete), "
+        "or 'Not Handled' (ignored/deflected).\n"
         + context_instruction
     )
 
     user_prompt = f"Notes:\n{context_block}\n\n{transcript_text}" if has_context else f"Notes:\n{transcript_text}"
 
     class ProductServiceExplained(BaseModel):
-        details_shared: str = Field(description="Exact details shared")
-        benefits_mentioned: str
-        conditions_mentioned: str
+        details_shared: str = Field(
+            description="Exact FREED program details explained \u2014 which program (DRP/DCP/DEP), how it works, what's included. One bullet per distinct detail with timestamp."
+        )
+        benefits_mentioned: str = Field(
+            description="Specific benefits pitched: CHPP, FREED Shield, i-FREED app, SPA savings model, negotiation team, pre-litigation support. One bullet per benefit with timestamp."
+        )
+        conditions_mentioned: str = Field(
+            description="Conditions explained: delinquency requirement, credit score impact, tenure, saving commitment, service fee structure. One bullet per condition."
+        )
 
     class FinancialDetails(BaseModel):
-        loan_amounts: str = Field(description="Loan amounts discussed")
-        interest_rates: str
-        emis: str
-        tenure: str
-        fees_or_charges: str = Field(description="Fees or charges mentioned")
-        other_numbers_with_context: str = Field(description="Any other numbers (with context)")
+        loan_amounts: str = Field(
+            description="Each unique loan/credit card outstanding \u2014 lender name, amount, type. One bullet per account. Deduplicate if same loan mentioned multiple times."
+        )
+        interest_rates: str = Field(
+            description="Interest rates mentioned for any loan or card. Write 'Not mentioned' if absent."
+        )
+        emis: str = Field(
+            description="Current EMI amounts per loan or card, with lender if mentioned. Write 'Not mentioned' if absent."
+        )
+        tenure: str = Field(
+            description="Expected FREED program tenure or remaining loan tenure if discussed. Write 'Not mentioned' if absent."
+        )
+        fees_or_charges: str = Field(
+            description="All fees discussed: evaluation fee, platform fee (10%+GST of SPA contribution), service fee (15%+GST of enrolled debt on settlement), with amounts/percentages if quoted."
+        )
+        settlement_target: str = Field(
+            description="Settlement target discussed \u2014 e.g. '45% of enrolled debt', with exact INR amount if computed by agent. Write 'Not discussed' if absent."
+        )
+        other_numbers_with_context: str = Field(
+            description="Any other numbers not captured above \u2014 CIBIL scores, account numbers, dates, etc. Each with one-line context."
+        )
 
     class CustomerAnalysis(BaseModel):
-        biggest_pain_point: str = Field(description="The biggest pain point of the customer. Include verbatim quotes + timestamps. Cross-reference hesitation signals from the ACOUSTIC CONTEXT if provided. Use bullet points (- ) for multiple aspects.")
-        most_appealing_aspect_and_moment_of_interest: str = Field(description="Which aspect of our program appeals to the customer the most, at which moment did the customer show interest? Cite buying trigger signals from ACOUSTIC CONTEXT if provided. Separate distinct moments with bullet points (- ).")
-        main_points_pitched: str = Field(description="What are the main points pitched. MUST use bullet points — each point on its own line starting with '- '. Never pack into a single paragraph.")
-        resolved_and_unresolved_questions: str = Field(description="What questions did the customer have that were resolved/unresolved by the sales rep. Separate resolved and unresolved into distinct sections with bullet points (- ) for each question.")
-        customer_state_of_mind: str = Field(description="Customer state of mind based on conversation AND acoustic emotion signals from the ACOUSTIC CONTEXT block if provided. Include dominant emotion, volatility, and any hesitation patterns observed.")
+        biggest_pain_point: str = Field(
+            description="Primary hardship \u2014 why customer can't pay. Include exact trigger (job loss, medical, income drop, harassment). Cite verbatim quotes + timestamps."
+        )
+        delinquency_status: str = Field(
+            description="Current payment status \u2014 how many months overdue per account, which accounts are delinquent. Include specifics if mentioned."
+        )
+        most_appealing_aspect_and_moment_of_interest: str = Field(
+            description="Which FREED feature resonated most with the customer. At what timestamp did customer show interest or positively respond? Cite quotes."
+        )
+        main_points_pitched: str = Field(
+            description="Agent's key pitch points \u2014 each as a separate bullet with timestamp. Focus on 5-6 strongest arguments made."
+        )
+        resolved_and_unresolved_questions: str = Field(
+            description="RESOLVED: question + agent answer + timestamp. UNRESOLVED: question + why not addressed. Use sub-bullets for each category."
+        )
+        customer_state_of_mind: str = Field(
+            description="Overall customer emotional state with specific quote evidence. Cross-reference acoustic emotion data if available. Note hesitation or buying signals."
+        )
+        customer_program_fit: str = Field(
+            description="Which FREED program (DRP/DCP/DEP) best fits this customer based on debt profile, income, delinquency. State if agent's recommendation was appropriate."
+        )
 
     class CallCategories(BaseModel):
-        primary_pain_point_category: str = Field(description="Strictly one of: 'Harassment Calls', 'High EMI Burden', 'Job Loss/Income Drop', 'Medical Emergency', 'Other'")
-        pain_point_evidence: str = Field(description="Cite the exact moments, quotes, and timestamps from the conversation that prove this pain point category. Also reference any hesitation signals or heated moments from the ACOUSTIC CONTEXT block. Use bullet points (- ) for each piece of evidence. Be specific — reference 2-3 key moments.")
-        customer_state_of_mind_category: str = Field(description="Strictly one of: 'Distressed/Panicked', 'Relieved/Hopeful', 'Skeptical/Hesitant', 'Angry/Frustrated', 'Neutral'. MUST be consistent with dominant customer emotion from ACOUSTIC CONTEXT if provided.")
-        state_of_mind_evidence: str = Field(description="Cite the exact moments, quotes, timestamps AND acoustic signals (dominant emotion, volatility, hesitation phrases) that justify this classification. Use bullet points (- ) for each piece of evidence. Reference 2-3 key moments including at least one acoustic signal if available.")
-        lead_conversion_probability: str = Field(description="Strictly one of: 'High', 'Medium', 'Low', 'Not Applicable'")
-        conversion_evidence: str = Field(description="Cite conversation moments, timestamps AND LLM-Verified Business Signals from ACOUSTIC CONTEXT (objections, buying triggers) that indicate lead probability. Use bullet points (- ) for each signal. Reference 2-3 specific buying signals or objections.")
-        total_identified_debt_inr: int = Field(description="Total sum of all UNIQUE, DEDUPLICATED debt/loan outstanding amounts in INR. Count each loan account ONCE at its highest confirmed outstanding value. If the same amount is mentioned by both agent and customer, count it only once. Use 0 if none is mentioned.")
-        major_keywords: list[str] = Field(description="A list of 5-8 keywords. Each keyword MUST follow this format: 'Keyword [MM:SS] — One-line context explaining why this keyword is significant in the call.' Example: 'Escrow Account [05:33] — Agent explained FREED\'s escrow-based savings model for settlement funds'. Do NOT omit the timestamp or context.")
+        primary_pain_point_category: str = Field(
+            description="Strictly one of: 'Harassment/Recovery Agent Calls', 'High EMI Burden', 'Job Loss/Income Drop', 'Medical Emergency', 'Debt Already Delinquent', 'Credit Score Concern', 'Unable to Pay (General)', 'Other'"
+        )
+        pain_point_evidence: str = Field(
+            description="2-3 specific quotes + timestamps proving the pain point category. Also cite acoustic hesitation signals or heated moments if available."
+        )
+        customer_state_of_mind_category: str = Field(
+            description="Strictly one of: 'Distressed/Panicked', 'Relieved/Hopeful', 'Skeptical/Hesitant', 'Angry/Frustrated', 'Neutral/Curious'. Must be consistent with acoustic emotion context if available."
+        )
+        state_of_mind_evidence: str = Field(
+            description="2-3 specific quotes + timestamps justifying the state. Include acoustic emotion signals (dominant emotion, volatility, hesitation phrases) if available."
+        )
+        lead_conversion_probability: str = Field(
+            description="Strictly one of: 'High', 'Medium', 'Low', 'Not Applicable'"
+        )
+        conversion_evidence: str = Field(
+            description="2-3 buying signals or objections with timestamps determining lead probability. Cross-reference acoustic business signals if available."
+        )
+        total_identified_debt_inr: int = Field(
+            description="Sum of UNIQUE deduplicated loan outstanding amounts in INR. Each account counted ONCE at highest confirmed value. Use 0 if none mentioned."
+        )
+        major_keywords: list[str] = Field(
+            description="5-8 domain-specific keywords. Format: 'Keyword [MM:SS] \u2014 One-line context explaining significance.' Must include timestamp and context for each."
+        )
 
     class ConversionAnalysis(BaseModel):
         did_customer_enroll: str = Field(description="Strictly one of: 'Yes', 'No', 'Unclear'")
-        enrollment_outcome_summary: str = Field(description="Brief description of the enrollment outcome and what happened at the end of the call")
-        dropoff_reasons: str = Field(description="If the customer did NOT enroll, identify the specific reasons/objections including any hesitation signals or objections from the ACOUSTIC CONTEXT block. Use bullet points (- ) for each reason. Reference timestamps. Write 'N/A - Customer enrolled' if they enrolled.")
-        missed_opportunities: str = Field(description="What could the agent have done differently to convert the customer? Use bullet points (- ) for each opportunity. Write 'N/A' if customer enrolled successfully.")
-        customer_intent_signals: str = Field(description="List specific moments showing customer interest or hesitation, with timestamps and positive/negative signal label. Cross-reference the ACOUSTIC CONTEXT buying triggers, hesitation phrases, and heated moments. Each signal on its own line with '- '.")
+        enrollment_outcome_summary: str = Field(
+            description="What happened at end of call \u2014 did customer agree, ask for time, raise final objection? Be specific with timestamp."
+        )
+        dropoff_reasons: str = Field(
+            description="If no enrollment: each specific objection or hesitation with timestamp and whether agent addressed it. Write 'N/A - Customer enrolled' if enrolled."
+        )
+        missed_opportunities: str = Field(
+            description="Concrete moments where agent could have pivoted or closed better. Each as bullet with suggested alternative. Write 'N/A - Successfully enrolled' if enrolled."
+        )
+        customer_intent_signals: str = Field(
+            description="All signals of customer interest/hesitation with timestamps and label [+Positive] or [-Negative]. Cross-reference acoustic hesitation and buying trigger signals."
+        )
+
+    class ChecklistItem(BaseModel):
+        item: str = Field(description="The checklist item description from the 21-item Sales Call Checklist")
+        category: str = Field(description="One of: Basics, Debt Understanding, Affordability, Program Pitch, Account Checks, Value & Fees, Compliance, Verification, Closure")
+        status: str = Field(description="One of: 'Completed', 'Partially Completed', 'Not Done', 'N/A - Follow-up call'")
+        evidence: str = Field(description="1-line: quote/timestamp if completed, or specific gap explanation if not done.")
+
+    class AgentChecklist(BaseModel):
+        checklist_items: list[ChecklistItem] = Field(
+            description="All 21 checklist items evaluated against the actual call. Must return exactly 21 items in order."
+        )
+        overall_score: str = Field(
+            description="Score as 'X/21 completed' (count only 'Completed' items). Classify: 'Strong (18-21)', 'Adequate (12-17)', or 'Needs Improvement (<12)'."
+        )
+        critical_gaps: str = Field(
+            description="Items entirely skipped that are critical for compliance or conversion \u2014 especially items 15 (borrower rights), 16 (credit score), 8 (FREED explanation). List each with why it matters."
+        )
+        agent_strengths: str = Field(
+            description="2-3 things the agent did particularly well. Be specific with timestamps."
+        )
+
+    class AuditTeamInsights(BaseModel):
+        call_type: str = Field(
+            description="Strictly one of: 'First Call', 'Follow-Up Call', 'Existing Customer Call'. Infer from context."
+        )
+        agent_communication_quality: str = Field(
+            description="3-4 bullet assessment of agent's language clarity, tone, empathy, and script adherence. Cite specific moments. Distinguish strengths from weaknesses."
+        )
+        compliance_flags: str = Field(
+            description="List ANY compliance issues: false promises, incorrect figures, failure to disclose credit impact or borrower rights, unauthorized FREED commitments, pressure language. Write 'No compliance flags identified' if clean."
+        )
+        objections_raised_and_handling: str = Field(
+            description="For each major customer objection: OBJECTION: [quote+timestamp] | AGENT RESPONSE: [summary] | QUALITY: Well Handled / Partially Handled / Not Handled. One entry per objection."
+        )
+        recommended_next_action: str = Field(
+            description="What should happen next: follow-up call (when + what to address), enrollment push, escalate to senior agent, send agreement, etc."
+        )
 
     class CallSummary(BaseModel):
-        overview: str = Field(description="What was discussed overall.")
+        overview: str = Field(
+            description="Call type + 1-2 sentence summary. Then list all customer pain points as bullets. Format: 'This was a [First/Follow-Up] call. [Summary].\\n- Pain Point 1\\n- Pain Point 2'"
+        )
+        call_type: str = Field(
+            description="Strictly one of: 'First Call', 'Follow-Up Call', 'Existing Customer Call'"
+        )
         product_service_explained: ProductServiceExplained
         financial_details: FinancialDetails
         customer_analysis: CustomerAnalysis
         conversion_analysis: ConversionAnalysis
         call_categories: CallCategories
+        audit_team_insights: AuditTeamInsights
+        agent_checklist: AgentChecklist
 
     try:
         client = openai.OpenAI(
@@ -641,8 +761,10 @@ def summarize_call_structured(
         summary_dict = json.loads(response.choices[0].message.content)
         return summary_dict
     except Exception as e:
-        print(f"   ⚠️  LLM Structured Summarization failed: {e}")
+        print(f"   \u26a0\ufe0f  LLM Structured Summarization failed: {e}")
         return {"error": str(e)}
+
+
 
 
 def verify_and_inject_inline_citations(data, transcript_segments: list[dict]):
@@ -753,86 +875,98 @@ def format_structured_summary(summary: dict) -> str:
 
     def _split_to_bullets(text: str) -> str:
         """Split a long paragraph into bullet points on numbered items or existing dashes."""
-        if not text or text.strip() == 'No information mentioned in the call.':
+        if not text or text.strip() in ('No information mentioned in the call.', 'Not clearly specified in the call.', 'Not mentioned', 'Not discussed'):
             return text
-        
+
         # If already has bullet points / newlines, leave as is
         if '\n- ' in text or '\n* ' in text:
             return text
-        
+
         # Split on numbered patterns: "1) ", "2) ", "1. ", etc.
         import re
         numbered = re.split(r'(?<=\.)\s*(?=\d+[\)\.]\s)', text)
         if len(numbered) > 1:
             return '\n'.join(f'- {item.strip()}' for item in numbered if item.strip())
-        
+
         # Split on " - " used as inline separators within paragraphs
         dashes = text.split(' - ')
         if len(dashes) > 2:  # At least 3 items separated by " - "
             return '\n'.join(f'- {item.strip()}' for item in dashes if item.strip())
-        
+
         return text
 
     lines = []
-    lines.append("OVERVIEW OF DISCUSSION")
-    lines.append("-" * 20)
-    lines.append(summary.get("overview", "No information mentioned in the call."))
-    
-    lines.append("\nPRODUCT/SERVICE EXPLAINED")
-    lines.append("-" * 20)
-    prod = summary.get("product_service_explained", {})
-    lines.append(f"Details Shared:")
-    lines.append(_split_to_bullets(prod.get('details_shared', 'No information mentioned in the call.')))
-    lines.append(f"\nBenefits Mentioned:")
-    lines.append(_split_to_bullets(prod.get('benefits_mentioned', 'No information mentioned in the call.')))
-    lines.append(f"\nConditions Mentioned:")
-    lines.append(_split_to_bullets(prod.get('conditions_mentioned', 'No information mentioned in the call.')))
-    
-    lines.append("\nFINANCIAL DETAILS DISCUSSED")
-    lines.append("-" * 20)
-    fin = summary.get("financial_details", {})
-    lines.append(f"Loan Amounts:\n{_split_to_bullets(fin.get('loan_amounts', 'No information mentioned in the call.'))}")
-    lines.append(f"\nInterest Rates: {fin.get('interest_rates', 'No information mentioned in the call.')}")
-    lines.append(f"\nEMIs:\n{_split_to_bullets(fin.get('emis', 'No information mentioned in the call.'))}")
-    lines.append(f"\nTenure: {fin.get('tenure', 'No information mentioned in the call.')}")
-    lines.append(f"\nFees/Charges:\n{_split_to_bullets(fin.get('fees_or_charges', 'No information mentioned in the call.'))}")
-    lines.append(f"\nOther Numbers (with context):\n{_split_to_bullets(fin.get('other_numbers_with_context', 'No information mentioned in the call.'))}")
-    
-    lines.append("\nCUSTOMER ANALYSIS")
-    lines.append("-" * 20)
-    cust = summary.get("customer_analysis", {})
-    lines.append(f"Biggest Pain Point:")
-    lines.append(_split_to_bullets(cust.get('biggest_pain_point', 'No information mentioned in the call.')))
-    lines.append(f"\nMost Appealing Aspect & Moment:")
-    lines.append(_split_to_bullets(cust.get('most_appealing_aspect_and_moment_of_interest', 'No information mentioned in the call.')))
-    lines.append(f"\nMain Points Pitched:")
-    lines.append(_split_to_bullets(cust.get('main_points_pitched', 'No information mentioned in the call.')))
-    lines.append(f"\nResolved/Unresolved Questions:")
-    lines.append(_split_to_bullets(cust.get('resolved_and_unresolved_questions', 'No information mentioned in the call.')))
-    lines.append(f"\nCustomer State of Mind: {cust.get('customer_state_of_mind', 'No information mentioned in the call.')}")
 
+    # OVERVIEW
+    call_type = summary.get("call_type", "")
+    call_type_badge = f"[{call_type}]" if call_type else ""
+    lines.append(f"OVERVIEW OF DISCUSSION {call_type_badge}")
+    lines.append("-" * 30)
+    lines.append(summary.get("overview", "No information mentioned in the call."))
+
+    # PRODUCT / SERVICE
+    lines.append("\nPRODUCT/SERVICE EXPLAINED")
+    lines.append("-" * 30)
+    prod = summary.get("product_service_explained", {})
+    lines.append("Program Details Shared:")
+    lines.append(_split_to_bullets(prod.get('details_shared', 'No information mentioned in the call.')))
+    lines.append("\nBenefits Mentioned:")
+    lines.append(_split_to_bullets(prod.get('benefits_mentioned', 'No information mentioned in the call.')))
+    lines.append("\nConditions & Expectations:")
+    lines.append(_split_to_bullets(prod.get('conditions_mentioned', 'No information mentioned in the call.')))
+
+    # FINANCIAL DETAILS
+    lines.append("\nFINANCIAL DETAILS DISCUSSED")
+    lines.append("-" * 30)
+    fin = summary.get("financial_details", {})
+    lines.append(f"Loan Accounts & Outstandings:\n{_split_to_bullets(fin.get('loan_amounts', 'Not mentioned'))}")
+    lines.append(f"\nInterest Rates: {fin.get('interest_rates', 'Not mentioned')}")
+    lines.append(f"\nCurrent EMIs:\n{_split_to_bullets(fin.get('emis', 'Not mentioned'))}")
+    lines.append(f"\nExpected Tenure: {fin.get('tenure', 'Not mentioned')}")
+    lines.append(f"\nFees & Charges:\n{_split_to_bullets(fin.get('fees_or_charges', 'Not mentioned'))}")
+    lines.append(f"\nSettlement Target: {fin.get('settlement_target', 'Not discussed')}")
+    lines.append(f"\nOther Numbers:\n{_split_to_bullets(fin.get('other_numbers_with_context', 'Not mentioned'))}")
+
+    # CUSTOMER ANALYSIS
+    lines.append("\nCUSTOMER ANALYSIS")
+    lines.append("-" * 30)
+    cust = summary.get("customer_analysis", {})
+    lines.append("Primary Pain Point:")
+    lines.append(_split_to_bullets(cust.get('biggest_pain_point', 'Not clearly specified in the call.')))
+    lines.append(f"\nDelinquency Status: {cust.get('delinquency_status', 'Not clearly specified in the call.')}")
+    lines.append("\nMost Appealing Aspect & Moment of Interest:")
+    lines.append(_split_to_bullets(cust.get('most_appealing_aspect_and_moment_of_interest', 'Not clearly specified in the call.')))
+    lines.append("\nMain Points Pitched:")
+    lines.append(_split_to_bullets(cust.get('main_points_pitched', 'Not clearly specified in the call.')))
+    lines.append("\nResolved / Unresolved Questions:")
+    lines.append(_split_to_bullets(cust.get('resolved_and_unresolved_questions', 'Not clearly specified in the call.')))
+    lines.append(f"\nCustomer State of Mind: {cust.get('customer_state_of_mind', 'Not clearly specified in the call.')}")
+    lines.append(f"\nRecommended Program Fit: {cust.get('customer_program_fit', 'Not clearly specified in the call.')}")
+
+    # CONVERSION & DROPOFF
     lines.append("\nCONVERSION & DROPOFF ANALYSIS")
-    lines.append("-" * 20)
+    lines.append("-" * 30)
     conv = summary.get("conversion_analysis", {})
     lines.append(f"Did Customer Enroll: {conv.get('did_customer_enroll', 'Not specified')}")
-    lines.append(f"\nEnrollment Outcome: {conv.get('enrollment_outcome_summary', 'No information mentioned in the call.')}")
-    lines.append(f"\nDropoff Reasons:")
-    lines.append(_split_to_bullets(conv.get('dropoff_reasons', 'No information mentioned in the call.')))
-    lines.append(f"\nMissed Opportunities:")
-    lines.append(_split_to_bullets(conv.get('missed_opportunities', 'No information mentioned in the call.')))
-    lines.append(f"\nCustomer Intent Signals:")
-    lines.append(_split_to_bullets(conv.get('customer_intent_signals', 'No information mentioned in the call.')))
-    
+    lines.append(f"\nEnrollment Outcome: {conv.get('enrollment_outcome_summary', 'Not clearly specified in the call.')}")
+    lines.append("\nDropoff Reasons:")
+    lines.append(_split_to_bullets(conv.get('dropoff_reasons', 'Not clearly specified in the call.')))
+    lines.append("\nMissed Opportunities:")
+    lines.append(_split_to_bullets(conv.get('missed_opportunities', 'Not clearly specified in the call.')))
+    lines.append("\nCustomer Intent Signals:")
+    lines.append(_split_to_bullets(conv.get('customer_intent_signals', 'Not clearly specified in the call.')))
+
+    # CALL CATEGORIES
     lines.append("\nCALL CATEGORIES")
-    lines.append("-" * 20)
+    lines.append("-" * 30)
     cats = summary.get("call_categories", {})
-    lines.append(f"Primary Pain Point: {cats.get('primary_pain_point_category', 'Not specified')}")
+    lines.append(f"Primary Pain Point Category: {cats.get('primary_pain_point_category', 'Not specified')}")
     lines.append(f"  Evidence:\n{_split_to_bullets(cats.get('pain_point_evidence', 'No evidence provided.'))}")
     lines.append(f"\nCustomer State of Mind: {cats.get('customer_state_of_mind_category', 'Not specified')}")
     lines.append(f"  Evidence:\n{_split_to_bullets(cats.get('state_of_mind_evidence', 'No evidence provided.'))}")
     lines.append(f"\nLead Conversion Probability: {cats.get('lead_conversion_probability', 'Not specified')}")
     lines.append(f"  Evidence:\n{_split_to_bullets(cats.get('conversion_evidence', 'No evidence provided.'))}")
-    lines.append(f"\nTotal Identified Debt (deduplicated): ₹{cats.get('total_identified_debt_inr', 0):,}")
+    lines.append(f"\nTotal Identified Debt (deduplicated): \u20b9{cats.get('total_identified_debt_inr', 0):,}")
     kws = cats.get('major_keywords', [])
     if kws:
         lines.append("\nMajor Keywords:")
@@ -840,5 +974,45 @@ def format_structured_summary(summary: dict) -> str:
             lines.append(f"- {kw}")
     else:
         lines.append("\nMajor Keywords: None identified")
+
+    # AUDIT TEAM INSIGHTS
+    audit = summary.get("audit_team_insights", {})
+    if audit:
+        lines.append("\nAUDIT TEAM INSIGHTS")
+        lines.append("-" * 30)
+        audit_call_type = audit.get("call_type", "")
+        if audit_call_type:
+            lines.append(f"Call Type: {audit_call_type}")
+        lines.append("\nAgent Communication Quality:")
+        lines.append(_split_to_bullets(audit.get('agent_communication_quality', 'Not assessed.')))
+        lines.append("\nCompliance Flags:")
+        lines.append(_split_to_bullets(audit.get('compliance_flags', 'No compliance flags identified.')))
+        lines.append("\nObjections & Handling Quality:")
+        lines.append(_split_to_bullets(audit.get('objections_raised_and_handling', 'Not assessed.')))
+        lines.append(f"\nRecommended Next Action: {audit.get('recommended_next_action', 'Not specified.')}")
+
+    # AGENT CALL CHECKLIST
+    checklist = summary.get("agent_checklist", {})
+    if checklist:
+        lines.append("\nAGENT CALL CHECKLIST")
+        lines.append("-" * 30)
+        lines.append(f"Overall Score: {checklist.get('overall_score', 'Not evaluated')}")
+        lines.append("\nAgent Strengths:")
+        lines.append(_split_to_bullets(checklist.get('agent_strengths', 'Not assessed.')))
+        lines.append("\nCritical Gaps:")
+        lines.append(_split_to_bullets(checklist.get('critical_gaps', 'None identified.')))
+
+        items = checklist.get("checklist_items", [])
+        if items:
+            lines.append("\nChecklist Items:")
+            for item in items:
+                status = item.get("status", "?")
+                icon = {"Completed": "\u2705", "Partially Completed": "\u26a0\ufe0f", "Not Done": "\u274c"}.get(status, "\u2014")
+                item_text = item.get("item", "")
+                evidence = item.get("evidence", "")
+                cat = item.get("category", "")
+                lines.append(f"  {icon} [{cat}] {item_text}")
+                if evidence and evidence.strip():
+                    lines.append(f"     \u2192 {evidence}")
 
     return "\n".join(lines)

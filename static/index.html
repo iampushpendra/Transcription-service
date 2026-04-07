@@ -2255,6 +2255,123 @@
             finalHtml += buildGroup("Customer Analysis (Q&A)", summary.customer_analysis);
             finalHtml += buildGroup("Conversion & Dropoff Analysis", summary.conversion_analysis);
 
+            // --- Audit Team Insights Panel ---
+            const audit = summary.audit_team_insights;
+            if (audit) {
+                const callTypeColors = {
+                    'First Call': { bg: 'rgba(96,165,250,0.15)', color: '#60a5fa', border: 'rgba(96,165,250,0.35)' },
+                    'Follow-Up Call': { bg: 'rgba(251,191,36,0.15)', color: '#fbbf24', border: 'rgba(251,191,36,0.35)' },
+                    'Existing Customer Call': { bg: 'rgba(74,222,128,0.15)', color: '#4ade80', border: 'rgba(74,222,128,0.35)' },
+                };
+                const ctStyle = callTypeColors[audit.call_type] || { bg: 'rgba(148,163,184,0.15)', color: '#94a3b8', border: 'rgba(148,163,184,0.35)' };
+                const hasFlags = audit.compliance_flags && !audit.compliance_flags.toLowerCase().includes('no compliance flags');
+                const flagsStyle = hasFlags
+                    ? 'background:rgba(248,113,113,0.1); border-left:3px solid #f87171; padding:10px 14px; border-radius:6px;'
+                    : 'background:rgba(74,222,128,0.08); border-left:3px solid #4ade80; padding:10px 14px; border-radius:6px;';
+
+                finalHtml += `
+                <details class="emotion-panel" style="margin-top:12px;" open>
+                    <summary style="cursor:pointer; list-style:none; display:flex; align-items:center; justify-content:space-between; padding:14px 18px; user-select:none;">
+                        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                            <span style="font-size:1.05rem; font-weight:700; color:var(--text);">&#x1F50E; Audit Team Insights</span>
+                            <span style="padding:3px 10px; border-radius:20px; font-size:0.75rem; font-weight:700; background:${ctStyle.bg}; color:${ctStyle.color}; border:1px solid ${ctStyle.border};">${audit.call_type || 'Unknown'}</span>
+                            ${hasFlags ? '<span style="padding:3px 10px; border-radius:20px; font-size:0.73rem; font-weight:700; background:rgba(248,113,113,0.15); color:#f87171; border:1px solid rgba(248,113,113,0.4);">&#x26A0;&#xFE0F; Compliance Flags</span>' : '<span style="padding:3px 10px; border-radius:20px; font-size:0.73rem; font-weight:700; background:rgba(74,222,128,0.1); color:#4ade80; border:1px solid rgba(74,222,128,0.3);">&#x2705; Clean</span>'}
+                        </div>
+                        <svg style="width:18px;height:18px;flex-shrink:0;color:var(--text-muted)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </summary>
+                    <div style="padding:0 18px 16px;">
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:14px;">
+                            <div style="background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px;">
+                                <div style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:8px;">Agent Communication</div>
+                                <div style="font-size:0.87rem; color:var(--text); line-height:1.65;">${formatMarkdownAndTimestamps(audit.agent_communication_quality || 'Not assessed.')}</div>
+                            </div>
+                            <div style="background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px;">
+                                <div style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:8px;">Recommended Next Action</div>
+                                <div style="font-size:0.87rem; color:var(--text); line-height:1.65;">${formatMarkdownAndTimestamps(audit.recommended_next_action || 'Not specified.')}</div>
+                            </div>
+                        </div>
+                        <div style="${flagsStyle} margin-bottom:12px;">
+                            <div style="font-size:0.75rem; font-weight:700; color:${hasFlags ? '#f87171' : '#4ade80'}; text-transform:uppercase; letter-spacing:0.6px; margin-bottom:8px;">${hasFlags ? '&#x26A0;&#xFE0F; Compliance Flags' : '&#x2705; Compliance'}</div>
+                            <div style="font-size:0.87rem; color:var(--text); line-height:1.65;">${formatMarkdownAndTimestamps(audit.compliance_flags || 'No compliance flags identified.')}</div>
+                        </div>
+                        <div style="background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:12px;">
+                            <div style="font-size:0.75rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.6px; margin-bottom:8px;">Objections &amp; Handling Quality</div>
+                            <div style="font-size:0.87rem; color:var(--text); line-height:1.7;">${formatMarkdownAndTimestamps(audit.objections_raised_and_handling || 'No objections assessed.')}</div>
+                        </div>
+                    </div>
+                </details>`;
+            }
+
+            // --- Agent Call Checklist Panel ---
+            const checklist = summary.agent_checklist;
+            if (checklist && checklist.checklist_items) {
+                const items = checklist.checklist_items || [];
+                const completedCount = items.filter(i => i.status === 'Completed').length;
+                const totalCount = items.length;
+                const scoreColor = completedCount >= 18 ? '#4ade80' : completedCount >= 12 ? '#fbbf24' : '#f87171';
+                const scoreLabel = completedCount >= 18 ? 'Strong' : completedCount >= 12 ? 'Adequate' : 'Needs Improvement';
+                const scoreRGB = completedCount >= 18 ? '74,222,128' : completedCount >= 12 ? '251,191,36' : '248,113,113';
+
+                const statusIcon = (status) => {
+                    if (status === 'Completed') return '<span style="color:#4ade80;font-size:1rem;">&#x2705;</span>';
+                    if (status === 'Partially Completed') return '<span style="color:#fbbf24;font-size:1rem;">&#x26A0;&#xFE0F;</span>';
+                    if (status === 'Not Done') return '<span style="color:#f87171;font-size:1rem;">&#x274C;</span>';
+                    return '<span style="color:#94a3b8;font-size:0.9rem;">&mdash;</span>';
+                };
+
+                const byCategory = {};
+                items.forEach(item => {
+                    const cat = item.category || 'Other';
+                    if (!byCategory[cat]) byCategory[cat] = [];
+                    byCategory[cat].push(item);
+                });
+
+                let checklistRows = '';
+                Object.entries(byCategory).forEach(([cat, catItems]) => {
+                    checklistRows += `<div style="margin-bottom:12px;">
+                        <div style="font-size:0.72rem; font-weight:700; color:var(--text-muted); text-transform:uppercase; letter-spacing:0.7px; padding:4px 0 6px; border-bottom:1px solid var(--border); margin-bottom:6px;">${cat}</div>`;
+                    catItems.forEach(item => {
+                        const bgCol = item.status === 'Completed' ? 'rgba(74,222,128,0.06)' : item.status === 'Not Done' ? 'rgba(248,113,113,0.06)' : 'rgba(251,191,36,0.06)';
+                        checklistRows += `<div style="display:flex; gap:8px; padding:7px 10px; border-radius:6px; margin-bottom:4px; background:${bgCol};">
+                            <div style="flex-shrink:0; padding-top:1px;">${statusIcon(item.status)}</div>
+                            <div style="min-width:0;">
+                                <div style="font-size:0.855rem; color:var(--text); line-height:1.4;">${item.item || ''}</div>
+                                ${item.evidence ? `<div style="font-size:0.78rem; color:var(--text-muted); margin-top:2px; font-style:italic;">${formatMarkdownAndTimestamps(item.evidence)}</div>` : ''}
+                            </div>
+                        </div>`;
+                    });
+                    checklistRows += '</div>';
+                });
+
+                finalHtml += `
+                <details class="emotion-panel" style="margin-top:12px;">
+                    <summary style="cursor:pointer; list-style:none; display:flex; align-items:center; justify-content:space-between; padding:14px 18px; user-select:none;">
+                        <div style="display:flex; align-items:center; gap:10px; flex-wrap:wrap;">
+                            <span style="font-size:1.05rem; font-weight:700; color:var(--text);">&#x1F4CB; Agent Call Checklist</span>
+                            <span style="padding:3px 14px; border-radius:20px; font-size:0.88rem; font-weight:800; background:rgba(${scoreRGB},0.12); color:${scoreColor}; border:1px solid rgba(${scoreRGB},0.4);">${completedCount}/${totalCount}</span>
+                            <span style="font-size:0.8rem; color:${scoreColor}; font-weight:600;">${scoreLabel}</span>
+                        </div>
+                        <svg style="width:18px;height:18px;flex-shrink:0;color:var(--text-muted)" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 9l-7 7-7-7"/></svg>
+                    </summary>
+                    <div style="padding:0 18px 16px;">
+                        ${checklist.agent_strengths || checklist.critical_gaps ? `
+                        <div style="display:grid; grid-template-columns:1fr 1fr; gap:10px; margin-bottom:14px;">
+                            <div style="background:rgba(74,222,128,0.07); border:1px solid rgba(74,222,128,0.25); border-radius:8px; padding:12px;">
+                                <div style="font-size:0.72rem; font-weight:700; color:#4ade80; text-transform:uppercase; letter-spacing:0.6px; margin-bottom:7px;">&#x1F4AA; Agent Strengths</div>
+                                <div style="font-size:0.855rem; color:var(--text); line-height:1.65;">${formatMarkdownAndTimestamps(checklist.agent_strengths || 'Not assessed.')}</div>
+                            </div>
+                            <div style="background:rgba(248,113,113,0.07); border:1px solid rgba(248,113,113,0.25); border-radius:8px; padding:12px;">
+                                <div style="font-size:0.72rem; font-weight:700; color:#f87171; text-transform:uppercase; letter-spacing:0.6px; margin-bottom:7px;">&#x26A0;&#xFE0F; Critical Gaps</div>
+                                <div style="font-size:0.855rem; color:var(--text); line-height:1.65;">${formatMarkdownAndTimestamps(checklist.critical_gaps || 'None identified.')}</div>
+                            </div>
+                        </div>` : ''}
+                        <div style="background:var(--bg); border:1px solid var(--border); border-radius:8px; padding:14px; max-height:440px; overflow-y:auto;">
+                            ${checklistRows}
+                        </div>
+                    </div>
+                </details>`;
+            }
+
             // --- Emotion & Escalation Analysis Panel ---
             const emotion = data.emotion_analysis;
             if (emotion) {

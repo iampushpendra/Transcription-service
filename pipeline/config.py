@@ -157,7 +157,7 @@ class PipelineConfig:
     openai_timeout_s: float = 90.0
     openai_summary_timeout_s: float = 180.0
     openai_max_retries: int = 1
-    summary_model: str = "gpt-5-mini"
+    summary_model: str = "gpt-4o-mini"
     enable_rephrase: bool = True
     rephrase_model: str = "gpt-4o-mini"
     enable_emotion_analysis: bool = True

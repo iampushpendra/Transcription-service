@@ -1097,6 +1097,13 @@
             </svg>
             Job History
         </div>
+        <div class="nav-item" id="nav-insights" onclick="switchView('insights', this); loadInsights();">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
+                    d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"></path>
+            </svg>
+            Winning Patterns
+        </div>
     </div>
 
     <!-- Main Content -->
@@ -1242,6 +1249,60 @@
             <div id="history-loading" style="color: var(--text-muted); text-align: center; padding: 40px;">Fetching past
                 jobs...</div>
             <div class="history-grid" id="history-grid"></div>
+        </div>
+
+        <!-- View: Winning Patterns -->
+        <div id="view-insights" class="view-section">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+                <div>
+                    <h2 class="section-title" style="margin-bottom: 4px;">Winning Patterns</h2>
+                    <p style="color: var(--text-muted); font-size: 0.85rem;" id="insights-meta">Analyzing converted calls...</p>
+                </div>
+                <button class="btn btn-secondary" onclick="loadInsights(true)">↻ Refresh Analysis</button>
+            </div>
+            <div id="insights-loading" style="color: var(--text-muted); text-align: center; padding: 60px;">
+                <div style="font-size: 2rem; margin-bottom: 12px;">🔍</div>
+                <div>Analyzing all converted calls...</div>
+            </div>
+            <div id="insights-content" style="display:none;">
+                <!-- Headline -->
+                <div id="insights-headline" style="background: linear-gradient(135deg, rgba(139,92,246,0.2), rgba(56,189,248,0.1)); border: 1px solid rgba(139,92,246,0.4); border-radius: 16px; padding: 24px 28px; margin-bottom: 28px;">
+                    <div style="font-size: 0.72rem; color: var(--primary); text-transform: uppercase; letter-spacing: 1px; margin-bottom: 8px;">🏆 Key Insight</div>
+                    <div id="insights-headline-text" style="font-size: 1.15rem; font-weight: 600; color: #fff; line-height: 1.5;"></div>
+                </div>
+
+                <!-- Pattern Cards -->
+                <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 16px;">Conversion Patterns</h3>
+                <div id="insights-patterns" style="display: flex; flex-direction: column; gap: 16px; margin-bottom: 32px;"></div>
+
+                <!-- Objections row -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px; margin-bottom: 28px;">
+                    <div>
+                        <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px;">Top Objections & Winning Responses</h3>
+                        <div id="insights-objections" style="display: flex; flex-direction: column; gap: 12px;"></div>
+                    </div>
+                    <div>
+                        <h3 style="font-size: 1rem; font-weight: 600; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 14px;">What NOT To Do</h3>
+                        <div id="insights-redflags" style="display: flex; flex-direction: column; gap: 10px;"></div>
+                    </div>
+                </div>
+
+                <!-- Bottom row: talk ratio + emotion -->
+                <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 20px;">
+                    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px;">
+                        <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">🎙️ Talk Ratio Insight</div>
+                        <div id="insights-talk-ratio" style="color: var(--text); font-size: 0.9rem; line-height: 1.6;"></div>
+                    </div>
+                    <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 20px;">
+                        <div style="font-size: 0.72rem; color: var(--text-muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 8px;">💭 Emotional Journey</div>
+                        <div id="insights-emotion" style="color: var(--text); font-size: 0.9rem; line-height: 1.6;"></div>
+                    </div>
+                </div>
+            </div>
+            <div id="insights-empty" style="display:none; text-align: center; padding: 60px; color: var(--text-muted);">
+                <div style="font-size: 2rem; margin-bottom: 12px;">📞</div>
+                <div>Process at least 2 calls to generate winning patterns.</div>
+            </div>
         </div>
 
         <!-- View 3: Dashboard Results (Existing) -->
@@ -2766,6 +2827,113 @@
             initOverview();
         }
         bootSequence();
+
+        // --- Winning Patterns ---
+        let insightsLoaded = false;
+
+        async function loadInsights(force = false) {
+            if (insightsLoaded && !force) return;
+
+            document.getElementById('insights-loading').style.display = 'block';
+            document.getElementById('insights-content').style.display = 'none';
+            document.getElementById('insights-empty').style.display = 'none';
+
+            try {
+                const url = force ? '/api/insights/refresh' : '/api/insights';
+                const method = force ? 'POST' : 'GET';
+                const res = await fetch(url, { method });
+
+                if (res.status === 202) {
+                    document.getElementById('insights-loading').style.display = 'none';
+                    document.getElementById('insights-empty').style.display = 'block';
+                    return;
+                }
+
+                const data = await res.json();
+                renderInsights(data);
+                insightsLoaded = !force;
+            } catch (err) {
+                document.getElementById('insights-loading').innerHTML = `<div style="color:#f87171">Failed to load insights: ${err.message}</div>`;
+            }
+        }
+
+        function renderInsights(data) {
+            document.getElementById('insights-loading').style.display = 'none';
+            document.getElementById('insights-content').style.display = 'block';
+
+            // Meta line
+            const genAt = data.generated_at ? new Date(data.generated_at).toLocaleString() : '';
+            document.getElementById('insights-meta').textContent =
+                `Based on ${data.total_calls_analyzed || 0} converted calls · Last updated ${genAt}`;
+
+            // Headline
+            document.getElementById('insights-headline-text').textContent = data.headline_insight || '';
+
+            // Patterns
+            const patternsEl = document.getElementById('insights-patterns');
+            patternsEl.innerHTML = '';
+            (data.patterns || []).forEach((p, i) => {
+                const freqCount = p.frequency_count || 0;
+                const total = data.total_calls_analyzed || 1;
+                const freqPct = Math.round(freqCount / total * 100);
+                const quotes = (p.evidence_quotes || []).slice(0, 2).map(q =>
+                    `<div style="border-left: 2px solid rgba(139,92,246,0.5); padding: 8px 12px; margin-top: 10px; color: var(--text-muted); font-style: italic; font-size: 0.85rem;">"${q.quote}"</div>`
+                ).join('');
+
+                patternsEl.innerHTML += `
+                <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 14px; padding: 22px 24px; transition: border-color 0.2s;" onmouseover="this.style.borderColor='rgba(139,92,246,0.4)'" onmouseout="this.style.borderColor='var(--border)'">
+                    <div style="display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; margin-bottom: 10px;">
+                        <div style="display: flex; align-items: center; gap: 12px;">
+                            <div style="width: 28px; height: 28px; background: var(--primary-glow); border: 1px solid rgba(139,92,246,0.5); border-radius: 8px; display: flex; align-items: center; justify-content: center; font-size: 0.75rem; font-weight: 700; color: var(--primary); flex-shrink: 0;">${i + 1}</div>
+                            <div style="font-weight: 600; font-size: 1rem; color: #fff;">${p.title}</div>
+                        </div>
+                        <div style="display: flex; align-items: center; gap: 8px; flex-shrink: 0;">
+                            <div style="font-size: 0.75rem; color: var(--text-muted);">${p.frequency}</div>
+                            <div style="background: rgba(110,231,183,0.15); border: 1px solid rgba(110,231,183,0.3); color: #6ee7b7; font-size: 0.72rem; font-weight: 600; padding: 3px 10px; border-radius: 20px;">${freqPct}% of calls</div>
+                        </div>
+                    </div>
+                    <div style="color: var(--text-muted); font-size: 0.88rem; line-height: 1.6; margin-bottom: 12px;">${p.description}</div>
+                    ${quotes}
+                    <div style="display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-top: 14px;">
+                        <div style="background: rgba(56,189,248,0.07); border: 1px solid rgba(56,189,248,0.15); border-radius: 10px; padding: 10px 14px;">
+                            <div style="font-size: 0.65rem; color: var(--accent); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">Agent Technique</div>
+                            <div style="font-size: 0.82rem; color: var(--text);">${p.agent_technique || '—'}</div>
+                        </div>
+                        <div style="background: rgba(139,92,246,0.07); border: 1px solid rgba(139,92,246,0.15); border-radius: 10px; padding: 10px 14px;">
+                            <div style="font-size: 0.65rem; color: var(--primary); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 4px;">💡 Coaching Tip</div>
+                            <div style="font-size: 0.82rem; color: var(--text);">${p.coaching_tip || '—'}</div>
+                        </div>
+                    </div>
+                </div>`;
+            });
+
+            // Objections
+            const objEl = document.getElementById('insights-objections');
+            objEl.innerHTML = '';
+            (data.top_objections || []).forEach(o => {
+                objEl.innerHTML += `
+                <div style="background: var(--surface); border: 1px solid var(--border); border-radius: 12px; padding: 16px;">
+                    <div style="font-size: 0.82rem; color: #fca5a5; font-weight: 500; margin-bottom: 6px;">❌ "${o.objection}"</div>
+                    <div style="font-size: 0.75rem; color: var(--text-muted); margin-bottom: 4px; text-transform: uppercase; letter-spacing: 0.4px;">Winning response (${o.frequency})</div>
+                    <div style="font-size: 0.85rem; color: #6ee7b7;">${o.winning_response}</div>
+                </div>`;
+            });
+
+            // Red flags
+            const rfEl = document.getElementById('insights-redflags');
+            rfEl.innerHTML = '';
+            (data.red_flags_avoided || []).forEach(rf => {
+                rfEl.innerHTML += `
+                <div style="display: flex; align-items: flex-start; gap: 10px; padding: 12px 14px; background: rgba(248,113,113,0.06); border: 1px solid rgba(248,113,113,0.15); border-radius: 10px;">
+                    <span style="color: #f87171; font-size: 0.9rem; flex-shrink: 0;">⚠</span>
+                    <span style="font-size: 0.85rem; color: var(--text-muted);">${rf}</span>
+                </div>`;
+            });
+
+            // Talk ratio + emotion
+            document.getElementById('insights-talk-ratio').textContent = data.talk_ratio_insight || '—';
+            document.getElementById('insights-emotion').textContent = data.emotional_pattern || '—';
+        }
     </script>
 </body>
 

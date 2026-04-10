@@ -23,6 +23,7 @@ from pipeline.reconstruct import reconstruct, summarize_call_structured, format_
 from pipeline.emotion import extract_acoustic_features, analyze_emotion
 from pipeline.triggers import analyze_triggers
 from pipeline.sarcasm import analyze_sarcasm
+from pipeline.insights import refresh_insights
 
 # Setup logging
 logging.basicConfig(
@@ -317,6 +318,12 @@ def process_audio_task(job_id: str, temp_path: str, original_filename: str):
         jobs[job_id]["result"] = output_data
         jobs[job_id]["output_dir"] = job_dir
         logger.info(f"Job {job_id} completed successfully. Saved to {job_dir}")
+
+        # Refresh winning patterns in background (non-blocking, best-effort)
+        try:
+            refresh_insights(cfg.openai_api_key)
+        except Exception as insights_err:
+            logger.warning(f"Insights refresh failed (non-fatal): {insights_err}")
         
     except Exception as e:
         logger.error(f"Job {job_id} failed: {str(e)}", exc_info=True)
@@ -480,6 +487,34 @@ async def delete_history_item(job_id: str):
     except Exception as e:
         logger.error(f"Failed to delete history item {job_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete directory: {str(e)}")
+
+@app.get("/api/insights")
+async def get_insights():
+    """Return cached winning patterns. Returns 202 if not yet generated."""
+    cfg = global_state.get("cfg")
+    api_key = cfg.openai_api_key if cfg else os.getenv("OPENAI_API_KEY", "")
+
+    if os.path.exists(os.path.join(OUTPUTS_DIR, "winning_patterns.json")):
+        with open(os.path.join(OUTPUTS_DIR, "winning_patterns.json"), "r", encoding="utf-8") as f:
+            return JSONResponse(content=json.load(f))
+
+    # Not cached yet — generate synchronously (first time only)
+    result = await asyncio.to_thread(refresh_insights, api_key)
+    if result is None:
+        return JSONResponse(status_code=202, content={"message": "Not enough calls to generate insights yet (need at least 2)."})
+    return JSONResponse(content=result)
+
+
+@app.post("/api/insights/refresh")
+async def force_refresh_insights():
+    """Force-regenerate winning patterns from all calls."""
+    cfg = global_state.get("cfg")
+    api_key = cfg.openai_api_key if cfg else os.getenv("OPENAI_API_KEY", "")
+    result = await asyncio.to_thread(refresh_insights, api_key, True)
+    if result is None:
+        return JSONResponse(status_code=202, content={"message": "Not enough calls to generate insights yet (need at least 2)."})
+    return JSONResponse(content=result)
+
 
 # Mount the static directory to serve the GUI Dashboard at root
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

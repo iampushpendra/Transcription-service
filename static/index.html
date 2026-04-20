@@ -324,21 +324,28 @@
         .kpi-card {
             background: var(--surface);
             border: 1px solid var(--border);
-            border-radius: 14px;
-            padding: 18px 16px;
+            border-radius: 10px;
+            padding: 16px 20px;
             display: flex;
             flex-direction: column;
             gap: 6px;
-            transition: border-color 0.2s, box-shadow 0.2s;
+            cursor: pointer;
+            transition: border-color 200ms ease, box-shadow 200ms ease;
         }
 
         .kpi-card:hover {
-            border-color: var(--border-hover);
-            box-shadow: 0 4px 20px rgba(139, 92, 246, 0.08);
+            border-color: rgba(2, 65, 110, 0.4);
+            box-shadow: 0 2px 12px rgba(2, 65, 110, 0.08);
+        }
+
+        body.dark .kpi-card:hover {
+            border-color: rgba(91, 174, 224, 0.4);
+            box-shadow: 0 2px 12px rgba(91, 174, 224, 0.08);
         }
 
         .kpi-label {
             font-size: 0.72rem;
+            font-weight: 500;
             color: var(--text-muted);
             text-transform: uppercase;
             letter-spacing: 0.5px;
@@ -346,13 +353,10 @@
         }
 
         .kpi-val {
-            font-size: clamp(1.3rem, 2vw, 2rem);
-            font-family: 'Inter';
-            font-weight: 600;
-            color: #fff;
-            overflow: hidden;
-            text-overflow: ellipsis;
-            white-space: nowrap;
+            font-size: 1.75rem;
+            font-weight: 700;
+            color: var(--primary);
+            line-height: 1.1;
         }
 
         .charts-container {
@@ -379,33 +383,50 @@
 
         /* Common Elements */
         .btn {
+            display: inline-flex;
+            align-items: center;
+            gap: 6px;
+            padding: 9px 18px;
             background: var(--primary);
             color: #fff;
             border: none;
-            padding: 12px 28px;
+            border-radius: 8px;
             font-family: 'Inter', sans-serif;
+            font-size: 0.875rem;
             font-weight: 600;
-            font-size: 1.1rem;
-            border-radius: 10px;
             cursor: pointer;
-            transition: all 0.2s ease;
-            box-shadow: 0 4px 15px rgba(139, 92, 246, 0.3);
+            transition: background 150ms ease, transform 100ms ease;
+            white-space: nowrap;
         }
 
-        .btn:hover {
-            background: #9333ea;
-            transform: translateY(-2px);
-        }
+        .btn:hover { background: var(--primary-hover); }
+        .btn:active { transform: scale(0.98); }
+        .btn:disabled { opacity: 0.5; cursor: not-allowed; }
 
         .btn-secondary {
-            background: rgba(255, 255, 255, 0.1);
-            box-shadow: none;
+            background: transparent;
+            color: var(--text);
             border: 1px solid var(--border);
         }
 
-        .btn-secondary:hover {
-            background: rgba(255, 255, 255, 0.15);
+        .btn-secondary:hover { background: var(--surface-2); }
+
+        .btn-ghost {
+            background: transparent;
+            color: var(--text-muted);
+            border: none;
+            padding: 6px 10px;
         }
+
+        .btn-ghost:hover { color: var(--text); background: var(--surface-2); }
+
+        .btn-danger {
+            background: var(--danger-bg);
+            color: var(--danger);
+            border: 1px solid rgba(220, 38, 38, 0.25);
+        }
+
+        .btn-danger:hover { background: rgba(220, 38, 38, 0.18); }
 
         /* Custom Scrollbar */
         ::-webkit-scrollbar {
@@ -517,12 +538,41 @@
         }
 
         .badge {
-            padding: 4px 10px;
-            border-radius: 6px;
-            font-size: 0.75rem;
-            font-weight: 500;
-            background: rgba(255, 255, 255, 0.05);
+            display: inline-flex;
+            align-items: center;
+            padding: 3px 10px;
+            border-radius: 20px;
+            font-size: 0.72rem;
+            font-weight: 600;
+            background: var(--surface-2);
+            color: var(--text-muted);
             border: 1px solid var(--border);
+            white-space: nowrap;
+        }
+
+        .badge-primary { background: var(--primary-bg); color: var(--primary); border-color: rgba(2,65,110,0.2); }
+        .badge-success { background: var(--success-bg); color: var(--success); border-color: rgba(22,163,74,0.2); }
+        .badge-warning { background: var(--warning-bg); color: var(--warning); border-color: rgba(180,83,9,0.2); }
+        .badge-danger  { background: var(--danger-bg);  color: var(--danger);  border-color: rgba(220,38,38,0.2); }
+        .badge-accent  { background: var(--accent-bg);  color: var(--accent);  border-color: rgba(241,110,32,0.2); }
+
+        .form-input {
+            width: 100%;
+            padding: 10px 14px;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            color: var(--text);
+            font-family: 'Inter', sans-serif;
+            font-size: 0.875rem;
+            transition: border-color 150ms ease, box-shadow 150ms ease;
+            outline: none;
+        }
+
+        .form-input::placeholder { color: var(--text-muted); }
+        .form-input:focus {
+            border-color: var(--primary);
+            box-shadow: 0 0 0 3px var(--primary-bg);
         }
 
         /* Original ↔ Rephrased toggle button */

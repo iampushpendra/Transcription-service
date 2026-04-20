@@ -1559,31 +1559,75 @@
             </div>
         </div>
 
-        <!-- View 1: Upload (Existing) -->
+        <!-- View 1: Upload (Existing + Chain Mode) -->
         <div id="view-upload" class="view-section">
             <h2 class="section-title">New Transcription</h2>
-            <div class="upload-card" id="drop-zone">
-                <svg width="48" height="48" fill="none" stroke="var(--text-muted)" viewBox="0 0 24 24"
-                    style="margin-bottom:20px;">
-                    <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
-                        d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z">
-                    </path>
-                </svg>
-                <h3>Select or Drop Audio</h3>
-                <p>Transcribe MP3, WAV, or M4A files locally.<br>Powered by automated Hinglish mapping &amp; AI Summaries.</p>
-                <input type="file" id="file-input" accept="audio/*" multiple style="display:none;">
-                <button class="btn" style="margin-top: 30px;" id="browse-btn"
-                    onclick="document.getElementById('file-input').click()">Browse Local Files</button>
+            <!-- Mode tabs -->
+            <div class="upload-mode-tabs">
+                <button id="mode-single-btn" class="upload-mode-btn active" onclick="setUploadMode('single')">Single Call</button>
+                <button id="mode-chain-btn" class="upload-mode-btn" onclick="setUploadMode('chain')">Chain of Calls</button>
             </div>
 
-            <div id="queue-container" style="display:none; max-width: 800px; margin: 40px auto; text-align: left;">
-                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
-                    <h3 style="font-size:1.1rem; font-weight:600; margin: 0; color: var(--text);">Upload Queue <span id="queue-count"
-                            style="color:var(--text-muted); font-size:0.95rem; font-weight:normal;">(0)</span></h3>
-                    <button class="btn btn-secondary" style="padding: 8px 14px; font-size: 0.875rem;"
-                        onclick="document.getElementById('file-input').click()">+ Add More</button>
+            <!-- Single call mode -->
+            <div id="mode-single-panel">
+                <div class="upload-card" id="drop-zone">
+                    <svg width="48" height="48" fill="none" stroke="var(--text-muted)" viewBox="0 0 24 24"
+                        style="margin-bottom:20px;">
+                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="1.5"
+                            d="M19 11a7 7 0 01-7 7m0 0a7 7 0 01-7-7m7 7v4m0 0H8m4 0h4m-4-8a3 3 0 01-3-3V5a3 3 0 116 0v6a3 3 0 01-3 3z">
+                        </path>
+                    </svg>
+                    <h3>Select or Drop Audio</h3>
+                    <p>Transcribe MP3, WAV, or M4A files locally.<br>Powered by automated Hinglish mapping &amp; AI Summaries.</p>
+                    <input type="file" id="file-input" accept="audio/*" multiple style="display:none;">
+                    <button class="btn" style="margin-top: 24px;" id="browse-btn"
+                        onclick="document.getElementById('file-input').click()">Browse Local Files</button>
                 </div>
-                <div id="queue-list" style="display: flex; flex-direction: column; gap: 15px;"></div>
+
+                <div id="queue-container" style="display:none; max-width: 800px; margin: 40px auto; text-align: left;">
+                    <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
+                        <h3 style="font-size:1.1rem; font-weight:600; margin: 0; color: var(--text);">Upload Queue <span id="queue-count"
+                                style="color:var(--text-muted); font-size:0.95rem; font-weight:normal;">(0)</span></h3>
+                        <button class="btn btn-secondary" style="padding: 8px 14px; font-size: 0.875rem;"
+                            onclick="document.getElementById('file-input').click()">+ Add More</button>
+                    </div>
+                    <div id="queue-list" style="display: flex; flex-direction: column; gap: 15px;"></div>
+                </div>
+            </div>
+
+            <!-- Chain mode -->
+            <div id="mode-chain-panel" style="display:none; max-width:800px; margin:0 auto; text-align:left;">
+                <div style="background:var(--surface); border:1px solid var(--border); border-radius:12px; padding:24px; margin-bottom:20px;">
+                    <h3 style="font-size:1.1rem; font-weight:600; margin:0 0 6px; color: var(--text);">Chain Mode</h3>
+                    <p style="color:var(--text-muted); font-size:0.875rem; margin:0 0 20px; line-height:1.6;">
+                        Upload multiple calls in the order they happened. They'll process sequentially and be stitched
+                        into a single chain view. Drag cards to reorder.
+                    </p>
+
+                    <div style="display:grid; grid-template-columns:1fr 1fr; gap:12px; margin-bottom:16px;">
+                        <input id="chain-label" type="text" class="form-input" placeholder="Chain label (optional — e.g. Gaurav Bhatotia — enrollment)">
+                        <input id="chain-customer" type="text" class="form-input" placeholder="Customer identifier (optional — phone or email)">
+                    </div>
+
+                    <div id="chain-drop-zone" style="border:2px dashed var(--border); border-radius:10px; padding:28px; text-align:center; cursor:pointer; background:var(--surface-2); transition:all 0.15s;">
+                        <div style="font-size:1rem; font-weight:600; margin-bottom:6px; color:var(--text);">Drop audio files here</div>
+                        <div style="color:var(--text-muted); font-size:0.85rem;">or click to browse — select multiple files at once</div>
+                        <input id="chain-file-input" type="file" accept="audio/*" multiple style="display:none;">
+                    </div>
+
+                    <div id="chain-file-list" style="display:none; margin-top:18px; display:flex; flex-direction:column; gap:8px;"></div>
+
+                    <div id="chain-submit-row" style="display:none; margin-top:20px; display:flex; justify-content:space-between; align-items:center;">
+                        <button onclick="clearChainQueue()" class="btn-ghost" style="padding:6px 10px; background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.9rem; text-decoration:underline;">Clear</button>
+                        <button onclick="submitChain()" class="btn" id="chain-submit-btn">Process Chain →</button>
+                    </div>
+                </div>
+
+                <div id="chain-progress-container" style="display:none;">
+                    <h3 style="font-size:1rem; font-weight:600; margin-bottom:12px; color: var(--text);">Chain Processing</h3>
+                    <div id="chain-progress-summary" style="font-size:0.9rem; color:var(--text-muted); margin-bottom:14px;"></div>
+                    <div id="chain-queue-list" style="display:flex; flex-direction:column; gap:10px;"></div>
+                </div>
             </div>
         </div>
 
@@ -2040,7 +2084,7 @@
                                 html += `<span style="font-weight:500; color:var(--text);">📞 ${m.filename}</span>`;
                                 if (m.timestamp) html += `<span style="color:#8b5cf6; font-family:monospace; font-size:0.75rem;">[${m.timestamp}]</span>`;
                                 html += `</div>`;
-                                if (m.context) html += `<div style="color:var(--text-muted); font-size:0.8rem; line-height:1.4; padding-left:12px; border-left:2px solid rgba(56,189,248,0.3);">${m.context}</div>`;
+                                if (m.context) html += `<div style="color:var(--text-muted); font-size:0.8rem; line-height:1.4; padding-left:12px; border-left:2px solid rgba(2,65,110,0.3);">${m.context}</div>`;
                                 html += `</div>`;
                             });
                             detailEl.innerHTML = html;
@@ -2132,6 +2176,203 @@
         fileInput.addEventListener('change', e => {
             if (e.target.files.length) startUpload(e.target.files);
         });
+
+        // HTML-escape helper for user-controlled strings.
+        function esc(s) {
+            const d = document.createElement('div');
+            d.textContent = s == null ? '' : String(s);
+            return d.innerHTML;
+        }
+
+        // --- Upload mode tabs ------------------------------------------------
+        function setUploadMode(mode) {
+            const singleBtn = document.getElementById('mode-single-btn');
+            const chainBtn = document.getElementById('mode-chain-btn');
+            const singlePanel = document.getElementById('mode-single-panel');
+            const chainPanel = document.getElementById('mode-chain-panel');
+            if (mode === 'chain') {
+                chainBtn.classList.add('active'); singleBtn.classList.remove('active');
+                chainPanel.style.display = 'block'; singlePanel.style.display = 'none';
+            } else {
+                singleBtn.classList.add('active'); chainBtn.classList.remove('active');
+                singlePanel.style.display = 'block'; chainPanel.style.display = 'none';
+            }
+        }
+
+        // --- Chain Mode ------------------------------------------------------
+        window._chainFiles = [];
+
+        const chainDrop = document.getElementById('chain-drop-zone');
+        const chainFileInput = document.getElementById('chain-file-input');
+        chainDrop.addEventListener('click', () => chainFileInput.click());
+        chainDrop.addEventListener('dragover', e => { e.preventDefault(); chainDrop.style.background = 'var(--primary-bg)'; chainDrop.style.borderColor = 'var(--primary)'; });
+        chainDrop.addEventListener('dragleave', () => { chainDrop.style.background = 'var(--surface-2)'; chainDrop.style.borderColor = 'var(--border)'; });
+        chainDrop.addEventListener('drop', e => {
+            e.preventDefault();
+            chainDrop.style.background = 'var(--surface-2)'; chainDrop.style.borderColor = 'var(--border)';
+            addChainFiles(e.dataTransfer.files);
+        });
+        chainFileInput.addEventListener('change', e => addChainFiles(e.target.files));
+
+        function addChainFiles(fileList) {
+            for (const f of fileList) {
+                if (!/\.(mp3|wav|m4a|ogg)$/i.test(f.name)) continue;
+                window._chainFiles.push(f);
+            }
+            renderChainFileList();
+        }
+
+        function removeChainFile(index) { window._chainFiles.splice(index, 1); renderChainFileList(); }
+        function moveChainFile(from, to) {
+            if (to < 0 || to >= window._chainFiles.length) return;
+            const [f] = window._chainFiles.splice(from, 1);
+            window._chainFiles.splice(to, 0, f);
+            renderChainFileList();
+        }
+        function clearChainQueue() { window._chainFiles = []; renderChainFileList(); }
+
+        // Build file-list rows via DOM methods (no innerHTML with user data).
+        function renderChainFileList() {
+            const list = document.getElementById('chain-file-list');
+            const submitRow = document.getElementById('chain-submit-row');
+            while (list.firstChild) list.removeChild(list.firstChild);
+            if (window._chainFiles.length === 0) {
+                list.style.display = 'none'; submitRow.style.display = 'none'; return;
+            }
+            list.style.display = 'flex'; submitRow.style.display = 'flex';
+
+            window._chainFiles.forEach((f, i) => {
+                const row = document.createElement('div');
+                row.style.cssText = 'display:flex; align-items:center; gap:12px; padding:10px 14px; background:var(--surface-2); border:1px solid var(--border); border-radius:8px;';
+
+                const badge = document.createElement('div');
+                badge.style.cssText = 'width:28px; height:28px; border-radius:50%; background:var(--primary); color:#fff; display:flex; align-items:center; justify-content:center; font-weight:700; flex-shrink:0;';
+                badge.textContent = String(i + 1);
+
+                const meta = document.createElement('div');
+                meta.style.cssText = 'flex:1; min-width:0; overflow:hidden;';
+                const nameEl = document.createElement('div');
+                nameEl.style.cssText = 'font-family:monospace; font-size:0.9rem; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;';
+                nameEl.textContent = f.name;
+                const sizeEl = document.createElement('div');
+                sizeEl.style.cssText = 'font-size:0.75rem; color:var(--text-muted);';
+                sizeEl.textContent = (f.size / 1024 / 1024).toFixed(2) + ' MB';
+                meta.appendChild(nameEl); meta.appendChild(sizeEl);
+
+                const upBtn = document.createElement('button');
+                upBtn.textContent = '↑';
+                upBtn.disabled = (i === 0);
+                upBtn.style.cssText = 'background:none; border:none; cursor:pointer; padding:4px 8px;';
+                upBtn.addEventListener('click', () => moveChainFile(i, i - 1));
+
+                const downBtn = document.createElement('button');
+                downBtn.textContent = '↓';
+                downBtn.disabled = (i === window._chainFiles.length - 1);
+                downBtn.style.cssText = 'background:none; border:none; cursor:pointer; padding:4px 8px;';
+                downBtn.addEventListener('click', () => moveChainFile(i, i + 1));
+
+                const rmBtn = document.createElement('button');
+                rmBtn.textContent = '✕';
+                rmBtn.style.cssText = 'background:none; border:none; color:#fca5a5; cursor:pointer; padding:4px 8px;';
+                rmBtn.addEventListener('click', () => removeChainFile(i));
+
+                row.appendChild(badge); row.appendChild(meta);
+                row.appendChild(upBtn); row.appendChild(downBtn); row.appendChild(rmBtn);
+                list.appendChild(row);
+            });
+        }
+
+        async function submitChain() {
+            if (window._chainFiles.length === 0) return;
+            const btn = document.getElementById('chain-submit-btn');
+            btn.disabled = true;
+            btn.textContent = 'Creating chain…';
+
+            const formData = new FormData();
+            const label = document.getElementById('chain-label').value.trim();
+            const customer = document.getElementById('chain-customer').value.trim();
+            if (label) formData.append('label', label);
+            if (customer) formData.append('customer_identifier', customer);
+            const submittedNames = window._chainFiles.map(f => f.name);
+            window._chainFiles.forEach(f => formData.append('files', f));
+
+            try {
+                const res = await fetch('/api/chain', { method: 'POST', body: formData });
+                if (!res.ok) throw new Error(await res.text());
+                const data = await res.json();
+
+                document.getElementById('chain-progress-container').style.display = 'block';
+                document.getElementById('chain-progress-summary').textContent =
+                    `Chain "${data.label || data.slug}" created with ${data.call_job_ids.length} calls queued.`;
+
+                const pList = document.getElementById('chain-queue-list');
+                while (pList.firstChild) pList.removeChild(pList.firstChild);
+
+                data.call_job_ids.forEach((jobId, idx) => {
+                    const filename = submittedNames[idx] || ('Call ' + (idx + 1));
+
+                    const row = document.createElement('div');
+                    row.style.cssText = 'padding:12px 16px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:8px; display:flex; flex-direction:column; gap:8px;';
+
+                    const top = document.createElement('div');
+                    top.style.cssText = 'display:flex; justify-content:space-between; align-items:center;';
+                    const left = document.createElement('div');
+                    left.style.cssText = 'display:flex; align-items:center; gap:10px;';
+                    const badge = document.createElement('span');
+                    badge.style.cssText = 'width:24px; height:24px; border-radius:50%; background:var(--primary); color:#fff; display:flex; align-items:center; justify-content:center; font-size:0.8rem; font-weight:700;';
+                    badge.textContent = String(idx + 1);
+                    const fn = document.createElement('span');
+                    fn.style.cssText = 'font-family:monospace; font-size:0.9rem;';
+                    fn.textContent = filename;
+                    left.appendChild(badge); left.appendChild(fn);
+
+                    const status = document.createElement('span');
+                    status.id = 'chain-status-' + jobId;
+                    status.style.cssText = 'font-size:0.8rem; color:var(--text-muted);';
+                    status.textContent = 'Queued';
+                    top.appendChild(left); top.appendChild(status);
+
+                    const barOuter = document.createElement('div');
+                    barOuter.style.cssText = 'width:100%; height:4px; background:#3f3f46; border-radius:3px; overflow:hidden;';
+                    const barInner = document.createElement('div');
+                    barInner.id = 'chain-bar-' + jobId;
+                    barInner.style.cssText = 'height:100%; width:0%; background:var(--primary); transition:width 0.3s;';
+                    barOuter.appendChild(barInner);
+
+                    row.appendChild(top); row.appendChild(barOuter);
+                    pList.appendChild(row);
+                    pollChainJob(jobId);
+                });
+
+                window._chainFiles = [];
+                renderChainFileList();
+                document.getElementById('chain-label').value = '';
+                document.getElementById('chain-customer').value = '';
+            } catch (e) {
+                alert('Chain creation failed: ' + e.message);
+            } finally {
+                btn.disabled = false;
+                btn.textContent = 'Process Chain →';
+            }
+        }
+
+        async function pollChainJob(jobId) {
+            const statusEl = document.getElementById('chain-status-' + jobId);
+            const barEl = document.getElementById('chain-bar-' + jobId);
+            if (!statusEl || !barEl) return;
+            try {
+                const res = await fetch('/api/status/' + encodeURIComponent(jobId));
+                if (!res.ok) throw new Error('status lookup failed');
+                const data = await res.json();
+                const pct = data.progress_percent || 0;
+                barEl.style.width = pct + '%';
+                statusEl.textContent = data.status === 'completed' ? '✓ Done'
+                    : data.status === 'failed' ? '✗ Failed'
+                    : ((data.progress || data.status) + ' (' + pct + '%)');
+                if (['completed', 'failed', 'cancelled'].includes(data.status)) return;
+            } catch (e) { /* retry */ }
+            setTimeout(() => pollChainJob(jobId), 3000);
+        }
 
         // State tracking
         const activeQueue = {};
@@ -2386,20 +2627,21 @@
                 const t1 = parseFloat(msg.getAttribute('data-end')) || (t0 + 5);
 
                 if (!isNaN(t0)) {
-                    // Exact match: if the timestamp falls within this spoken chunk's timeframe
+                    // Exact match: target falls inside this segment's span
                     if (seconds >= t0 && seconds <= t1 + 1) {
-                        // Tiebreak overlapping segments: prefer one whose t0 is closest to target
                         const overlapDiff = Math.abs(t0 - seconds);
                         if (minDiff !== 0 || overlapDiff < (closest ? Math.abs(parseFloat(closest.getAttribute('data-time')) - seconds) : Infinity)) {
                             closest = msg;
                             minDiff = 0;
                         }
                     }
-                    // Fallback closest match
+                    // Fallback: pick segment whose closer edge (t0 or t1) is nearest target.
+                    // Use the segment's *minimum* edge distance for ranking so long merged
+                    // segments don't lose to short neighbours.
                     else if (minDiff !== 0) {
-                        const diff = Math.min(Math.abs(t0 - seconds), Math.abs(t1 - seconds));
-                        if (diff < minDiff) {
-                            minDiff = diff;
+                        const edgeDiff = Math.min(Math.abs(t0 - seconds), Math.abs(t1 - seconds));
+                        if (edgeDiff < minDiff) {
+                            minDiff = edgeDiff;
                             closest = msg;
                         }
                     }
@@ -2488,10 +2730,108 @@
         // --- History Grid ---
         window._historyCache = [];  // Global store for history job data
 
+        function _prettyDateFromId(id) {
+            const parts = id.split('_');
+            if (parts.length >= 3) {
+                try {
+                    const dateStr = parts[parts.length - 3];
+                    return `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`;
+                } catch (e) { }
+            }
+            return 'Recent';
+        }
+
+        function _buildSingleCard(job, sourceArrayName, idx) {
+            const card = document.createElement('div');
+            card.className = 'history-card';
+            card.style.position = 'relative';
+
+            const del = document.createElement('div');
+            del.style.cssText = 'position:absolute; top:10px; right:10px; z-index:10;';
+            const delBtn = document.createElement('button');
+            delBtn.style.cssText = 'background:none; border:none; cursor:pointer; color:var(--text-muted); padding:4px; border-radius:4px;';
+            delBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
+            delBtn.addEventListener('click', (ev) => deleteHistory(ev, job.id, card));
+            del.appendChild(delBtn);
+
+            const body = document.createElement('div');
+            body.style.cssText = 'height:100%; display:flex; flex-direction:column; cursor:pointer;';
+            body.addEventListener('click', () => renderDashboard(window[sourceArrayName][idx]));
+
+            const dateDiv = document.createElement('div'); dateDiv.className = 'date';
+            dateDiv.textContent = _prettyDateFromId(job.id);
+            const fnDiv = document.createElement('div'); fnDiv.className = 'filename';
+            fnDiv.textContent = job.filename || job.id;
+            const badges = document.createElement('div'); badges.className = 'badges'; badges.style.marginTop = 'auto';
+            const b1 = document.createElement('div'); b1.className = 'badge'; b1.textContent = (job.duration || 0).toFixed(1) + 's'; badges.appendChild(b1);
+            const b2 = document.createElement('div'); b2.className = 'badge'; b2.textContent = (job.segments || []).length + ' Turns'; badges.appendChild(b2);
+
+            body.appendChild(dateDiv); body.appendChild(fnDiv); body.appendChild(badges);
+            card.appendChild(del); card.appendChild(body);
+            return card;
+        }
+
+        function _buildChainCard(chain, idx) {
+            const card = document.createElement('div');
+            card.className = 'history-card';
+            card.style.position = 'relative';
+            card.style.borderLeft = '3px solid var(--accent)';
+
+            const totalDur = (chain.member_calls || []).reduce((s, c) => s + (c.duration || 0), 0);
+            const nCalls = (chain.member_calls || []).length;
+
+            const tag = document.createElement('div');
+            tag.style.cssText = 'position:absolute; top:10px; right:10px; z-index:10; font-size:0.7rem; color:var(--accent); letter-spacing:0.08em; text-transform:uppercase; font-weight:700;';
+            tag.textContent = 'Chain';
+            card.appendChild(tag);
+
+            const dateDiv = document.createElement('div'); dateDiv.className = 'date';
+            dateDiv.textContent = chain.created_at ? chain.created_at.substring(0, 10) : 'Recent';
+            const labelDiv = document.createElement('div'); labelDiv.className = 'filename';
+            labelDiv.textContent = chain.label || chain.customer_identifier || chain.slug;
+
+            const badges = document.createElement('div'); badges.className = 'badges'; badges.style.marginTop = 'auto';
+            const b1 = document.createElement('div'); b1.className = 'badge'; b1.textContent = nCalls + ' Calls'; badges.appendChild(b1);
+            const b2 = document.createElement('div'); b2.className = 'badge'; b2.textContent = totalDur.toFixed(0) + 's total'; badges.appendChild(b2);
+            if (chain.closed) { const b3 = document.createElement('div'); b3.className = 'badge'; b3.textContent = 'Closed'; badges.appendChild(b3); }
+
+            const open = document.createElement('div');
+            open.style.cssText = 'margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;';
+            const viewBtn = document.createElement('button');
+            viewBtn.textContent = 'View Combined →';
+            viewBtn.style.cssText = 'padding:6px 12px; background:var(--primary); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:0.85rem; font-weight:600;';
+            viewBtn.addEventListener('click', () => renderChainDashboard(chain));
+            open.appendChild(viewBtn);
+
+            const expandBtn = document.createElement('button');
+            expandBtn.textContent = 'Members';
+            expandBtn.style.cssText = 'padding:6px 12px; background:var(--surface-2); color:var(--text-muted); border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:0.85rem; font-family:inherit;';
+            const memberPanel = document.createElement('div');
+            memberPanel.style.cssText = 'display:none; margin-top:10px; padding:10px; background:rgba(0,0,0,0.25); border-radius:6px;';
+            (chain.member_calls || []).forEach((m, mIdx) => {
+                const mRow = document.createElement('div');
+                mRow.style.cssText = 'display:flex; align-items:center; gap:10px; padding:6px 0; cursor:pointer;';
+                mRow.addEventListener('click', () => renderDashboard(m));
+                const num = document.createElement('span'); num.textContent = String(mIdx + 1); num.style.cssText = 'color:var(--accent); font-weight:700; width:24px;';
+                const fn = document.createElement('span'); fn.textContent = m.filename; fn.style.cssText = 'flex:1; font-size:0.85rem; font-family:monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;';
+                const dur = document.createElement('span'); dur.textContent = (m.duration || 0).toFixed(0) + 's'; dur.style.cssText = 'color:var(--text-muted); font-size:0.8rem;';
+                mRow.appendChild(num); mRow.appendChild(fn); mRow.appendChild(dur);
+                memberPanel.appendChild(mRow);
+            });
+            expandBtn.addEventListener('click', () => {
+                memberPanel.style.display = memberPanel.style.display === 'none' ? 'block' : 'none';
+            });
+            open.appendChild(expandBtn);
+
+            card.appendChild(dateDiv); card.appendChild(labelDiv); card.appendChild(badges);
+            card.appendChild(open); card.appendChild(memberPanel);
+            return card;
+        }
+
         async function loadHistoryGrid() {
             const grid = document.getElementById('history-grid');
             const loader = document.getElementById('history-loading');
-            grid.innerHTML = '';
+            while (grid.firstChild) grid.removeChild(grid.firstChild);
             loader.style.display = 'block';
 
             try {
@@ -2499,47 +2839,93 @@
                 const data = await res.json();
                 loader.style.display = 'none';
                 window._historyCache = data.history || [];
+                window._chainsCache = data.chains || [];
+                window._singlesCache = data.singles || data.history || [];
 
-                if (window._historyCache.length === 0) {
-                    grid.innerHTML = '<div style="color:var(--text-muted); grid-column:1/-1;">No past transcriptions found.</div>';
+                if (window._chainsCache.length === 0 && window._singlesCache.length === 0) {
+                    const empty = document.createElement('div');
+                    empty.style.cssText = 'color:var(--text-muted); grid-column:1/-1;';
+                    empty.textContent = 'No past transcriptions found.';
+                    grid.appendChild(empty);
                     return;
                 }
 
-                window._historyCache.forEach((job, idx) => {
-                    const card = document.createElement('div');
-                    card.className = 'history-card';
-                    card.style.position = 'relative';
-
-                    let prettyDate = "Recent";
-                    const parts = job.id.split('_');
-                    if (parts.length >= 3) {
-                        try {
-                            const dateStr = parts[parts.length - 3];
-                            prettyDate = `${dateStr.substring(0, 4)}-${dateStr.substring(4, 6)}-${dateStr.substring(6, 8)}`;
-                        } catch (e) { }
-                    }
-
-                    card.innerHTML = `
-                        <div onclick="renderDashboard(window._historyCache[${idx}])" style="flex:1; display:flex; align-items:center; gap:16px; min-width:0; cursor:pointer;">
-                            <div class="date">${prettyDate}</div>
-                            <div class="filename">${job.filename}</div>
-                            <div class="badges">
-                                <div class="badge">${(job.duration || 0).toFixed(1)}s</div>
-                                <div class="badge">${(job.segments || []).length} Turns</div>
-                            </div>
-                        </div>
-                        <button onclick="deleteHistory(event, '${job.id}', this.closest('.history-card'));" style="background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 6px; border-radius: 6px; flex-shrink:0;" title="Delete">
-                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                <path d="M3 6h18"></path>
-                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                            </svg>
-                        </button>
-                    `;
-                    grid.appendChild(card);
+                // Chains first (top-of-mind), then singles.
+                window._chainsCache.forEach((chain, idx) => {
+                    grid.appendChild(_buildChainCard(chain, idx));
+                });
+                window._singlesCache.forEach((job, idx) => {
+                    grid.appendChild(_buildSingleCard(job, '_singlesCache', idx));
                 });
             } catch (e) {
-                loader.textContent = "Failed to load history.";
+                loader.textContent = 'Failed to load history.';
             }
+        }
+
+        // --- Chain dashboard ----------------------------------------------
+        async function renderChainDashboard(chain) {
+            switchView('dashboard', null);
+            document.getElementById('dash-title').textContent = (chain.label || chain.slug) + ' — Chain (' + (chain.member_calls || []).length + ' calls)';
+            document.getElementById('stat-dur').textContent = (chain.member_calls || []).reduce((s, c) => s + (c.duration || 0), 0).toFixed(0) + 's';
+            document.getElementById('stat-segs').textContent = (chain.member_calls || []).reduce((s, c) => s + ((c.segments || []).length), 0);
+            document.getElementById('stat-diar').textContent = 'Chain';
+            const engineEl = document.getElementById('dash-engine'); if (engineEl) engineEl.textContent = 'Chain View';
+
+            const toggleBtn = document.getElementById('transcript-toggle-btn');
+            if (toggleBtn) toggleBtn.style.display = 'none';
+
+            const timeline = document.getElementById('dash-timeline');
+            while (timeline.firstChild) timeline.removeChild(timeline.firstChild);
+
+            // Fetch the chain_transcript for canonical rendering.
+            let chainTranscript = null;
+            try {
+                const res = await fetch('/api/chain/' + encodeURIComponent(chain.id) + '/transcript');
+                if (res.ok) chainTranscript = await res.json();
+            } catch (e) { /* fall through */ }
+
+            const entries = (chainTranscript && chainTranscript.entries) || [];
+            if (entries.length === 0) {
+                const empty = document.createElement('div');
+                empty.style.cssText = 'color:var(--text-muted); padding:20px; text-align:center;';
+                empty.textContent = 'Chain is empty or still processing — retry shortly.';
+                timeline.appendChild(empty);
+                return;
+            }
+
+            // Build combined segments list + boundary markers.
+            entries.forEach((entry, i) => {
+                if (entry.type === 'call_boundary') {
+                    const sep = document.createElement('div');
+                    sep.style.cssText = 'margin:20px 0 12px; padding:10px 16px; background:var(--accent-bg); border-left:3px solid var(--accent); border-radius:4px; font-family:Inter, sans-serif; font-weight:600; color:var(--accent); letter-spacing:0.04em;';
+                    sep.textContent = '=== Call ' + entry.call_index + ' · ' + (entry.duration || 0).toFixed(0) + 's ===';
+                    timeline.appendChild(sep);
+                } else if (entry.type === 'segment') {
+                    const role = entry.role || entry.speaker || 'unknown';
+                    const div = document.createElement('div');
+                    div.className = 'message msg-' + role;
+                    div.setAttribute('data-time', entry.t0);
+                    div.setAttribute('data-end', entry.t1);
+                    div.setAttribute('data-call-index', entry.call_index);
+                    div.setAttribute('data-seg-id', entry.id);
+                    const header = document.createElement('div');
+                    header.className = 'message-header';
+                    const spk = document.createElement('span'); spk.className = 'spk-tag'; spk.textContent = (role || '').toUpperCase();
+                    const time = document.createElement('span'); time.className = 'spk-time';
+                    time.textContent = '[C' + entry.call_index + ' · ' + (entry.t0 || 0).toFixed(1) + 's - ' + (entry.t1 || 0).toFixed(1) + 's]';
+                    header.appendChild(spk); header.appendChild(time);
+                    const body = document.createElement('div');
+                    body.style.cssText = 'padding:6px 0 0; line-height:1.5;';
+                    body.textContent = entry.text || '';
+                    div.appendChild(header); div.appendChild(body);
+                    timeline.appendChild(div);
+                }
+            });
+
+            // Hide per-call panels that don't apply to chain view (summary, emotion, etc.)
+            ['dash-summary-panel', 'dash-emotion-panel', 'dash-trigger-panel', 'dash-sarcasm-panel', 'dash-audit-panel', 'dash-checklist-panel'].forEach(id => {
+                const el = document.getElementById(id); if (el) el.style.display = 'none';
+            });
         }
 
         // --- Dashboard Rendering (from JSON) ---
@@ -2574,6 +2960,8 @@
                 div.setAttribute('data-time', t0);
                 div.setAttribute('data-end', t1);
                 div.setAttribute('data-seg-idx', idx);
+                const segId = (seg.id !== undefined && seg.id !== null) ? seg.id : idx;
+                div.setAttribute('data-seg-id', segId);
                 div.innerHTML = `
                     <div class="message-header">
                         <span class="spk-tag">${role.toUpperCase()}</span>

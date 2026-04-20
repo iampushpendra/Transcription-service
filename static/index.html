@@ -551,45 +551,61 @@
             }
         }
 
-        /* History & Dashboard (from previous phase) */
+        /* History — row list */
         .history-grid {
-            display: grid;
-            grid-template-columns: repeat(auto-fill, minmax(350px, 1fr));
-            gap: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 0;
+            border: 1px solid var(--border);
+            border-radius: 12px;
+            overflow: hidden;
+            background: var(--surface);
         }
 
         .history-card {
             background: var(--surface);
-            border: 1px solid var(--border);
-            border-radius: 16px;
-            padding: 24px;
+            border-bottom: 1px solid var(--border);
+            padding: 14px 20px;
             cursor: pointer;
-            transition: all 0.2s ease;
+            transition: background 150ms ease;
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            position: relative;
         }
 
+        .history-card:last-child { border-bottom: none; }
+
         .history-card:hover {
-            border-color: var(--primary);
-            background: var(--surface-hover);
-            transform: translateY(-2px);
+            background: var(--surface-2);
         }
 
         .history-card .date {
-            font-size: 0.8rem;
+            font-size: 0.78rem;
             color: var(--text-muted);
-            margin-bottom: 8px;
+            white-space: nowrap;
+            flex-shrink: 0;
+            width: 84px;
+            margin-bottom: 0;
         }
 
         .history-card .filename {
-            font-weight: 600;
-            font-size: 1.1rem;
-            color: #fff;
-            margin-bottom: 12px;
-            word-break: break-all;
+            font-weight: 500;
+            font-size: 0.9rem;
+            color: var(--text);
+            flex: 1;
+            overflow: hidden;
+            text-overflow: ellipsis;
+            white-space: nowrap;
+            margin-bottom: 0;
+            word-break: normal;
         }
 
         .history-card .badges {
             display: flex;
-            gap: 8px;
+            align-items: center;
+            gap: 6px;
+            flex-shrink: 0;
         }
 
         .badge {
@@ -2450,22 +2466,20 @@
                     }
 
                     card.innerHTML = `
-                        <div style="position: absolute; top: 10px; right: 10px; z-index: 10;">
-                            <button onclick="deleteHistory(event, '${job.id}', this.closest('.history-card'));" style="background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 4px; border-radius: 4px;">
-                                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                                    <path d="M3 6h18"></path>
-                                    <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                                </svg>
-                            </button>
-                        </div>
-                        <div onclick="renderDashboard(window._historyCache[${idx}])" style="height: 100%; display: flex; flex-direction: column; cursor: pointer;">
+                        <div onclick="renderDashboard(window._historyCache[${idx}])" style="flex:1; display:flex; align-items:center; gap:16px; min-width:0; cursor:pointer;">
                             <div class="date">${prettyDate}</div>
                             <div class="filename">${job.filename}</div>
-                            <div class="badges" style="margin-top: auto;">
+                            <div class="badges">
                                 <div class="badge">${(job.duration || 0).toFixed(1)}s</div>
                                 <div class="badge">${(job.segments || []).length} Turns</div>
                             </div>
                         </div>
+                        <button onclick="deleteHistory(event, '${job.id}', this.closest('.history-card'));" style="background: none; border: none; cursor: pointer; color: var(--text-muted); padding: 6px; border-radius: 6px; flex-shrink:0;" title="Delete">
+                            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                                <path d="M3 6h18"></path>
+                                <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                            </svg>
+                        </button>
                     `;
                     grid.appendChild(card);
                 });

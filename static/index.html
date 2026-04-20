@@ -1180,9 +1180,15 @@
         }
 
         .message {
-            margin-bottom: 20px;
+            padding: 14px 20px;
+            margin-bottom: 0;
+            border-bottom: 1px solid var(--border);
             line-height: 1.6;
+            transition: background 150ms ease;
         }
+
+        .message:last-child { border-bottom: none; }
+        .message:hover { background: var(--surface-2); }
 
         .message-header {
             display: flex;
@@ -1192,36 +1198,37 @@
         }
 
         .spk-tag {
-            font-size: 0.75rem;
-            font-weight: 600;
-            padding: 4px 8px;
-            border-radius: 4px;
+            font-size: 0.7rem;
+            font-weight: 700;
+            padding: 3px 9px;
+            border-radius: 6px;
             letter-spacing: 0.5px;
+            text-transform: uppercase;
         }
 
         .spk-time {
-            font-size: 0.75rem;
+            font-size: 0.72rem;
             color: var(--text-muted);
-            font-family: monospace;
+            font-family: ui-monospace, 'Geist Mono', monospace;
         }
 
         .spk-text {
-            color: #e4e4e7;
-            font-size: 0.95rem;
+            color: var(--text);
+            font-size: 0.9rem;
         }
 
         .msg-agent .spk-tag {
-            background: rgba(110, 231, 183, 0.15);
-            color: var(--agent-color);
+            background: var(--primary-bg);
+            color: var(--primary);
         }
 
         .msg-customer .spk-tag {
-            background: rgba(252, 165, 165, 0.15);
-            color: var(--customer-color);
+            background: var(--accent-bg);
+            color: var(--accent);
         }
 
         .msg-unknown .spk-tag {
-            background: rgba(161, 161, 170, 0.15);
+            background: var(--surface-2);
             color: var(--text-muted);
         }
 
@@ -1869,12 +1876,12 @@
 
                         if (kpi === 'total-debt') {
                             const sorted = [...drillData.debtBreakdown].sort((a, b) => b.debt - a.debt);
-                            html = '<div style="font-weight:600; margin-bottom:8px; color:#6ee7b7;">Debt Breakdown by Call</div>';
-                            html += sorted.map(d => `<div style="display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid rgba(255,255,255,0.05);"><span style="max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${d.filename}</span><span style="color:#6ee7b7; font-weight:500;">₹${new Intl.NumberFormat('en-IN').format(d.debt)}</span></div>`).join('');
+                            html = '<div style="font-weight:600; margin-bottom:8px; color:var(--success);">Debt Breakdown by Call</div>';
+                            html += sorted.map(d => `<div style="display:flex; justify-content:space-between; padding:3px 0; border-bottom:1px solid var(--border);"><span style="max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${d.filename}</span><span style="color:var(--success); font-weight:500;">₹${new Intl.NumberFormat('en-IN').format(d.debt)}</span></div>`).join('');
                         } else if (kpi === 'high-leads') {
-                            html = '<div style="font-weight:600; margin-bottom:8px; color:#fca5a5;">High Intent Lead Evidence</div>';
+                            html = '<div style="font-weight:600; margin-bottom:8px; color:var(--danger);">High Intent Lead Evidence</div>';
                             if (drillData.highLeadList.length === 0) { html += '<div style="color:var(--text-muted);">No high intent leads detected yet.</div>'; }
-                            else { html += drillData.highLeadList.map(d => `<div style="padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.05);"><strong>${d.filename}</strong><br><span style="color:var(--text-muted); font-size:0.8rem;">Keywords: ${d.keywords}</span></div>`).join(''); }
+                            else { html += drillData.highLeadList.map(d => `<div style="padding:4px 0; border-bottom:1px solid var(--border);"><strong>${d.filename}</strong><br><span style="color:var(--text-muted); font-size:0.8rem;">Keywords: ${d.keywords}</span></div>`).join(''); }
                         } else if (kpi === 'avg-duration') {
                             const sorted = [...drillData.durationList].sort((a, b) => b.duration - a.duration);
                             const median = sorted.length > 0 ? sorted[Math.floor(sorted.length / 2)].duration : 0;
@@ -1888,11 +1895,11 @@
                             const filtered = drillData.conversionList.filter(d => d.enrolled === filter);
                             html = `<div style="font-weight:600; margin-bottom:8px; color:${color};">${filter === 'Yes' ? 'Enrolled Calls' : 'Dropped Off Calls'}</div>`;
                             if (filtered.length === 0) { html += '<div style="color:var(--text-muted);">No data available yet.</div>'; }
-                            else { html += filtered.map(d => `<div style="padding:4px 0; border-bottom:1px solid rgba(255,255,255,0.05);"><strong>${d.filename}</strong><br><span style="color:var(--text-muted); font-size:0.8rem;">${d.reason.substring(0, 150)}${d.reason.length > 150 ? '...' : ''}</span></div>`).join(''); }
+                            else { html += filtered.map(d => `<div style="padding:4px 0; border-bottom:1px solid var(--border);"><strong>${d.filename}</strong><br><span style="color:var(--text-muted); font-size:0.8rem;">${d.reason.substring(0, 150)}${d.reason.length > 150 ? '...' : ''}</span></div>`).join(''); }
                         } else if (kpi === 'avg-debt') {
-                            html = '<div style="font-weight:600; margin-bottom:8px; color:#a78bfa;">Per-Call Debt Analysis</div>';
+                            html = '<div style="font-weight:600; margin-bottom:8px; color:var(--primary);">Per-Call Debt Analysis</div>';
                             const sorted = [...drillData.debtBreakdown].sort((a, b) => b.debt - a.debt);
-                            html += sorted.slice(0, 8).map(d => `<div style="display:flex; justify-content:space-between; padding:2px 0;"><span style="max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${d.filename}</span><span style="color:#a78bfa;">₹${new Intl.NumberFormat('en-IN').format(d.debt)}</span></div>`).join('');
+                            html += sorted.slice(0, 8).map(d => `<div style="display:flex; justify-content:space-between; padding:2px 0;"><span style="max-width:260px; overflow:hidden; text-overflow:ellipsis; white-space:nowrap;">${d.filename}</span><span style="color:var(--primary);">₹${new Intl.NumberFormat('en-IN').format(d.debt)}</span></div>`).join('');
                         } else if (kpi === 'total-calls') {
                             html = '<div style="font-weight:600; margin-bottom:8px;">All Processed Calls</div>';
                             html += drillData.durationList.slice(0, 10).map(d => `<div style="padding:2px 0;">${d.filename} <span style="color:var(--text-muted);">(${d.duration.toFixed(0)}s)</span></div>`).join('');
@@ -1940,7 +1947,7 @@
                         calls.forEach(call => {
                             const fname = typeof call === 'string' ? call : call.filename;
                             const evidence = typeof call === 'object' ? call.evidence : '';
-                            html += `<div style="padding:8px 0; border-bottom:1px solid rgba(255,255,255,0.06);">`;
+                            html += `<div style="padding:8px 0; border-bottom:1px solid var(--border);">`;
                             html += `<div style="font-weight:500; color:#e4e4e7; margin-bottom:4px;">📞 ${fname}</div>`;
                             if (evidence) {
                                 html += `<div style="color:var(--text-muted); font-size:0.8rem; line-height:1.5; padding-left:12px; border-left:2px solid rgba(139,92,246,0.3);">${evidence}</div>`;
@@ -2026,7 +2033,7 @@
                             const matches = (drillData.keywordDetails || []).filter(d => d.keyword === clickedKw);
                             let html = `<div style="font-weight:600; color:var(--text); margin-bottom:8px; font-size:0.9rem;">"${clickedKw}" — <span style="color:var(--text-muted); font-weight:400;">${matches.length} occurrence(s)</span></div>`;
                             matches.forEach(m => {
-                                html += `<div style="padding:6px 0; border-bottom:1px solid rgba(255,255,255,0.06);">`;
+                                html += `<div style="padding:6px 0; border-bottom:1px solid var(--border);">`;
                                 html += `<div style="display:flex; align-items:center; gap:8px; margin-bottom:3px;">`;
                                 html += `<span style="font-weight:500; color:#e4e4e7;">📞 ${m.filename}</span>`;
                                 if (m.timestamp) html += `<span style="color:#8b5cf6; font-family:monospace; font-size:0.75rem;">[${m.timestamp}]</span>`;

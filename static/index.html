@@ -1471,6 +1471,33 @@
     </div>
 
     <script>
+        // ── UI State: Theme & Sidebar ──────────────────────────────────────────
+        function toggleTheme() {
+            const isDark = document.body.classList.toggle('dark');
+            localStorage.setItem('theme', isDark ? 'dark' : 'light');
+            updateThemeIcon(isDark);
+        }
+
+        function updateThemeIcon(isDark) {
+            const sun = document.querySelector('.icon-sun');
+            const moon = document.querySelector('.icon-moon');
+            if (!sun || !moon) return;
+            sun.style.display = isDark ? 'none' : 'block';
+            moon.style.display = isDark ? 'block' : 'none';
+        }
+
+        function toggleSidebar() {
+            const collapsed = document.body.classList.toggle('sidebar-collapsed');
+            localStorage.setItem('sidebar-state', collapsed ? 'collapsed' : 'expanded');
+        }
+
+        // Apply saved states (backup to the inline no-flash script)
+        window.addEventListener('DOMContentLoaded', function() {
+            const isDark = document.body.classList.contains('dark');
+            updateThemeIcon(isDark);
+        });
+        // ── End UI State ────────────────────────────────────────────────────────
+
         function toggleMetaStats() {
             const container = document.getElementById('meta-stats-collapsible');
             const btn = document.getElementById('meta-stats-toggle');
@@ -1495,6 +1522,16 @@
 
         // --- Navigation ---
         function switchView(viewId, navElement) {
+            // Update top bar title
+            const titleMap = {
+                'overview': 'Global Analytics',
+                'upload': 'New Transcription',
+                'history': 'Job History',
+                'dashboard': 'Call Analysis'
+            };
+            const titleEl = document.getElementById('top-bar-title');
+            if (titleEl && titleMap[viewId]) titleEl.textContent = titleMap[viewId];
+
             document.querySelectorAll('.view-section').forEach(el => el.classList.remove('active'));
             document.getElementById('view-' + viewId).classList.add('active');
 

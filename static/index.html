@@ -11,18 +11,78 @@
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
         :root {
-            --bg: #09090b;
-            --surface: rgba(24, 24, 27, 0.6);
-            --surface-hover: rgba(39, 39, 42, 0.8);
-            --border: rgba(255, 255, 255, 0.08);
-            --border-hover: rgba(255, 255, 255, 0.15);
-            --primary: #8b5cf6;
-            --primary-glow: rgba(139, 92, 246, 0.3);
-            --accent: #38bdf8;
-            --text: #f4f4f5;
-            --text-muted: #a1a1aa;
-            --agent-color: #6ee7b7;
-            --customer-color: #fca5a5;
+            /* FREED Brand */
+            --primary: #02416E;
+            --primary-hover: #023356;
+            --primary-bg: #E9F3FA;
+            --accent: #F16E20;
+            --accent-bg: rgba(241, 110, 32, 0.10);
+
+            /* Surfaces */
+            --bg: #F6FAFE;
+            --surface: #FFFFFF;
+            --surface-2: #E9F3FA;
+            --border: #D6E6F3;
+
+            /* Text — all pass WCAG AA on their surfaces */
+            --text: #0F1923;
+            --text-muted: #5B7A93;
+
+            /* Semantic */
+            --success: #16a34a;
+            --success-bg: rgba(22, 163, 74, 0.10);
+            --warning: #b45309;
+            --warning-bg: rgba(180, 83, 9, 0.10);
+            --danger: #dc2626;
+            --danger-bg: rgba(220, 38, 38, 0.10);
+
+            /* Speaker colors */
+            --agent-color: #02416E;
+            --customer-color: #d97706;
+
+            /* Legacy aliases — used by JS inline styles, do not remove */
+            --border-color: #D6E6F3;
+            --text-color: #0F1923;
+            --bg-surface: #FFFFFF;
+            --surface-hover: #E9F3FA;
+            --border-hover: #A8C8E8;
+            --primary-glow: rgba(2, 65, 110, 0.15);
+            --glass: rgba(255, 255, 255, 0.6);
+        }
+
+        body.dark {
+            --primary: #5BAEE0;
+            --primary-hover: #4A9FD4;
+            --primary-bg: rgba(91, 174, 224, 0.12);
+            --accent: #F16E20;
+            --accent-bg: rgba(241, 110, 32, 0.15);
+
+            --bg: #08151F;
+            --surface: #0F2338;
+            --surface-2: #162D47;
+            --border: #1E3A52;
+
+            --text: #E8F4FF;
+            --text-muted: #7B9CB5;
+
+            --success: #4ade80;
+            --success-bg: rgba(74, 222, 128, 0.12);
+            --warning: #fbbf24;
+            --warning-bg: rgba(251, 191, 36, 0.12);
+            --danger: #f87171;
+            --danger-bg: rgba(248, 113, 113, 0.12);
+
+            --agent-color: #5BAEE0;
+            --customer-color: #fbbf24;
+
+            /* Legacy aliases — dark mode values */
+            --border-color: #1E3A52;
+            --text-color: #E8F4FF;
+            --bg-surface: #0F2338;
+            --surface-hover: #162D47;
+            --border-hover: #2A4A6A;
+            --primary-glow: rgba(91, 174, 224, 0.20);
+            --glass: rgba(15, 35, 56, 0.8);
         }
 
         * {

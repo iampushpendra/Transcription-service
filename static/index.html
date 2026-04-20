@@ -6,7 +6,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
     <title>FREED AI | Transcription Dashboard</title>
     <link
-        href="https://fonts.googleapis.com/css2?family=Outfit:wght@300;400;600;800&family=Inter:wght@400;500;600&display=swap"
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800&display=swap"
         rel="stylesheet">
     <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
     <style>
@@ -907,10 +907,14 @@
             font-size: 0.68rem;
             padding: 2px 8px;
             border-radius: 10px;
-            background: rgba(139, 92, 246, 0.15);
-            color: #a78bfa;
-            border: 1px solid rgba(139, 92, 246, 0.25);
+            background: var(--primary-bg);
+            color: var(--primary);
+            border: 1px solid rgba(2, 65, 110, 0.25);
             font-weight: 500;
+        }
+
+        body.dark .match-badge {
+            border-color: rgba(91, 174, 224, 0.3);
         }
 
         .trigger-entry.negative .trigger-speaker {
@@ -1264,7 +1268,7 @@
             position: relative;
             margin-bottom: 6px;
             line-height: 1.5;
-            color: #d1d5db;
+            color: var(--text);
         }
 
         .summary-list li::before {
@@ -1948,7 +1952,7 @@
                             const fname = typeof call === 'string' ? call : call.filename;
                             const evidence = typeof call === 'object' ? call.evidence : '';
                             html += `<div style="padding:8px 0; border-bottom:1px solid var(--border);">`;
-                            html += `<div style="font-weight:500; color:#e4e4e7; margin-bottom:4px;">📞 ${fname}</div>`;
+                            html += `<div style="font-weight:500; color:var(--text); margin-bottom:4px;">📞 ${fname}</div>`;
                             if (evidence) {
                                 html += `<div style="color:var(--text-muted); font-size:0.8rem; line-height:1.5; padding-left:12px; border-left:2px solid rgba(139,92,246,0.3);">${evidence}</div>`;
                             }
@@ -2035,7 +2039,7 @@
                             matches.forEach(m => {
                                 html += `<div style="padding:6px 0; border-bottom:1px solid var(--border);">`;
                                 html += `<div style="display:flex; align-items:center; gap:8px; margin-bottom:3px;">`;
-                                html += `<span style="font-weight:500; color:#e4e4e7;">📞 ${m.filename}</span>`;
+                                html += `<span style="font-weight:500; color:var(--text);">📞 ${m.filename}</span>`;
                                 if (m.timestamp) html += `<span style="color:#8b5cf6; font-family:monospace; font-size:0.75rem;">[${m.timestamp}]</span>`;
                                 html += `</div>`;
                                 if (m.context) html += `<div style="color:var(--text-muted); font-size:0.8rem; line-height:1.4; padding-left:12px; border-left:2px solid rgba(56,189,248,0.3);">${m.context}</div>`;
@@ -2096,7 +2100,7 @@
                         btn = document.createElement('button');
                         btn.id = 'restore-dismissed-btn';
                         btn.textContent = '↩ Restore All Dismissed';
-                        btn.style.cssText = 'position:fixed; bottom:24px; right:24px; padding:10px 20px; background:rgba(139,92,246,0.85); color:#fff; border:none; border-radius:10px; cursor:pointer; font-size:0.85rem; font-family:Inter; z-index:999; backdrop-filter:blur(8px); box-shadow:0 4px 20px rgba(0,0,0,0.3); transition:transform 0.2s, opacity 0.2s;';
+                        btn.style.cssText = 'position:fixed; bottom:24px; right:24px; padding:10px 20px; background:var(--primary); color:#fff; border:none; border-radius:10px; cursor:pointer; font-size:0.85rem; font-family:Inter; z-index:999; backdrop-filter:blur(8px); box-shadow:0 4px 20px rgba(0,0,0,0.3); transition:transform 0.2s, opacity 0.2s;';
                         btn.addEventListener('mouseenter', () => { btn.style.transform = 'scale(1.05)'; });
                         btn.addEventListener('mouseleave', () => { btn.style.transform = 'scale(1)'; });
                         btn.addEventListener('click', () => {
@@ -2212,7 +2216,7 @@
                     activeQueue[data.job_id] = { status: 'queued', filename: file.name };
 
                     document.getElementById(`queue-status-${data.job_id}`).textContent = "Queued";
-                    document.getElementById(`queue-status-${data.job_id}`).style.cssText = "font-size: 0.85rem; padding: 4px 10px; border-radius: 6px; font-weight: 500; background: rgba(161, 161, 170, 0.1); color: #a1a1aa;";
+                    document.getElementById(`queue-status-${data.job_id}`).style.cssText = "font-size: 0.85rem; padding: 4px 10px; border-radius: 6px; font-weight: 500; background: rgba(161, 161, 170, 0.1); color: var(--text-muted);";
                     document.getElementById(`queue-progress-${data.job_id}`).textContent = "Position: " + data.queue_position;
 
                     pollJob(data.job_id);
@@ -2276,7 +2280,7 @@
                     const cancelBtn = document.getElementById(`queue-cancel-${jobId}`);
                     if (cancelBtn) {
                         cancelBtn.textContent = 'Clear';
-                        cancelBtn.style.color = '#a1a1aa';
+                        cancelBtn.style.color = 'var(--text-muted)';
                         cancelBtn.setAttribute('onclick', '');
                         cancelBtn.onclick = () => {
                             const item = document.getElementById(`queue-item-${jobId}`);
@@ -2320,7 +2324,7 @@
                     setTimeout(() => pollJob(jobId), 2000);
                 } else {
                     statusEl.textContent = "Queued";
-                    statusEl.style.color = "#a1a1aa";
+                    statusEl.style.color = 'var(--text-muted)';
                     statusEl.style.background = "rgba(161, 161, 170, 0.1)";
                     setTimeout(() => pollJob(jobId), 2000);
                 }
@@ -3138,7 +3142,7 @@
                         statusEl.style.background = 'rgba(251, 191, 36, 0.1)';
                     } else if (job.status === 'queued' && statusEl) {
                         statusEl.textContent = 'Queued';
-                        statusEl.style.color = '#a1a1aa';
+                        statusEl.style.color = 'var(--text-muted)';
                         statusEl.style.background = 'rgba(161, 161, 170, 0.1)';
                     }
                     if (progressEl) progressEl.textContent = job.progress || 'Restoring...';

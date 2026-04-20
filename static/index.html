@@ -1255,7 +1255,7 @@
 
         .metric-body {
             padding: 20px;
-            background: rgba(0, 0, 0, 0.2);
+            background: var(--surface-2);
         }
 
         .summary-list {
@@ -1474,7 +1474,7 @@
                     </div>
                     <div class="kpi-card" data-kpi="total-debt" style="cursor: pointer; position: relative;">
                         <div class="kpi-label">Total Analyzed Debt</div>
-                        <div class="kpi-val" style="color: #6ee7b7;" id="kpi-total-debt">₹0</div>
+                        <div class="kpi-val" style="color: var(--success);" id="kpi-total-debt">₹0</div>
                     </div>
                     <div class="kpi-card" data-kpi="avg-duration" style="cursor: pointer; position: relative;">
                         <div class="kpi-label">Average Call Duration</div>
@@ -1482,19 +1482,19 @@
                     </div>
                     <div class="kpi-card" data-kpi="high-leads" style="cursor: pointer; position: relative;">
                         <div class="kpi-label">High Intent Leads</div>
-                        <div class="kpi-val" style="color: #fca5a5;" id="kpi-high-leads">0</div>
+                        <div class="kpi-val" style="color: var(--danger);" id="kpi-high-leads">0</div>
                     </div>
                     <div class="kpi-card" data-kpi="conversion-rate" style="cursor: pointer; position: relative;">
                         <div class="kpi-label">Conversion Rate</div>
-                        <div class="kpi-val" style="color: #34d399;" id="kpi-conv-rate">--</div>
+                        <div class="kpi-val" style="color: var(--success);" id="kpi-conv-rate">--</div>
                     </div>
                     <div class="kpi-card" data-kpi="dropoff-rate" style="cursor: pointer; position: relative;">
                         <div class="kpi-label">Dropoff Rate</div>
-                        <div class="kpi-val" style="color: #fbbf24;" id="kpi-dropoff-rate">--</div>
+                        <div class="kpi-val" style="color: var(--warning);" id="kpi-dropoff-rate">--</div>
                     </div>
                     <div class="kpi-card" data-kpi="avg-debt" style="cursor: pointer; position: relative;">
                         <div class="kpi-label">Avg Debt Per Call</div>
-                        <div class="kpi-val" style="color: #a78bfa;" id="kpi-avg-debt">₹0</div>
+                        <div class="kpi-val" id="kpi-avg-debt">₹0</div>
                     </div>
                 </div>
 
@@ -2019,11 +2019,9 @@
                 const ctxKeywords = document.getElementById('chart-keywords').getContext('2d');
                 const sortedKeywords = Object.keys(keywordCounts).sort((a, b) => keywordCounts[b] - keywordCounts[a]).slice(0, 8);
                 const countsKeywords = sortedKeywords.map(k => keywordCounts[k]);
-                const paletteBg = chartPalette.map(c => c + '99');
-                const paletteBorder = chartPalette;
                 chartKeywords = new Chart(ctxKeywords, {
                     type: 'bar',
-                    data: { labels: sortedKeywords, datasets: [{ label: 'Mentions across all calls', data: countsKeywords, backgroundColor: paletteBg, hoverBackgroundColor: paletteBorder, borderRadius: 4, borderWidth: 0 }] },
+                    data: { labels: sortedKeywords, datasets: [{ label: 'Mentions across all calls', data: countsKeywords, backgroundColor: chartPalette, hoverBackgroundColor: chartPalette, borderRadius: 4, borderWidth: 0 }] },
                     options: {
                         indexAxis: 'y', responsive: true, maintainAspectRatio: false,
                         plugins: { legend: { display: false } },
@@ -2444,7 +2442,7 @@
                     if (spkName.includes('AGENT') && spkName.includes('CUSTOMER')) {
                         titleText = `Agent & Customer at ${timeStr}`;
                         dotColor = 'rgba(167, 139, 250, 0.7)'; // subtle purple
-                        hoverColor = '#a78bfa';
+                        hoverColor = '#F16E20';
                     } else if (spkName.includes('AGENT')) {
                         titleText = `Agent at ${timeStr}`;
                         dotColor = 'rgba(56, 189, 248, 0.7)'; // subtle blue

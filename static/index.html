@@ -1244,13 +1244,13 @@
         }
 
         .metric-header {
-            background: rgba(139, 92, 246, 0.1);
+            background: var(--primary-bg);
             padding: 12px 20px;
             border-bottom: 1px solid var(--border);
-            color: #d8b4fe;
+            color: var(--primary);
             font-weight: 600;
-            font-family: 'Inter';
-            font-size: 1.1rem;
+            font-family: 'Inter', sans-serif;
+            font-size: 1.05rem;
         }
 
         .metric-body {
@@ -1420,25 +1420,25 @@
             <div class="nav-label">Navigation</div>
 
             <div class="nav-item active" id="nav-overview" onclick="switchView('overview', this)" title="Overview">
-            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="flex-shrink:0">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6">
                 </path>
             </svg>
-            Overview
+            <span>Overview</span>
         </div>
         <div class="nav-item" id="nav-upload" onclick="switchView('upload', this)" title="New Process">
-            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="flex-shrink:0">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 4v16m8-8H4"></path>
             </svg>
-            New Process
+            <span>New Process</span>
         </div>
         <div class="nav-item" id="nav-history" onclick="switchView('history', this);" title="Job History">
-            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+            <svg width="20" height="20" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="flex-shrink:0">
                 <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2"
                     d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"></path>
             </svg>
-            Job History
+            <span>Job History</span>
         </div>
         </div>
         <!-- Content Wrapper (top bar + main content) -->
@@ -2744,87 +2744,91 @@
         function _buildSingleCard(job, sourceArrayName, idx) {
             const card = document.createElement('div');
             card.className = 'history-card';
-            card.style.position = 'relative';
-
-            const del = document.createElement('div');
-            del.style.cssText = 'position:absolute; top:10px; right:10px; z-index:10;';
-            const delBtn = document.createElement('button');
-            delBtn.style.cssText = 'background:none; border:none; cursor:pointer; color:var(--text-muted); padding:4px; border-radius:4px;';
-            delBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
-            delBtn.addEventListener('click', (ev) => deleteHistory(ev, job.id, card));
-            del.appendChild(delBtn);
 
             const body = document.createElement('div');
-            body.style.cssText = 'height:100%; display:flex; flex-direction:column; cursor:pointer;';
+            body.style.cssText = 'flex:1; display:flex; align-items:center; gap:16px; min-width:0; cursor:pointer;';
             body.addEventListener('click', () => renderDashboard(window[sourceArrayName][idx]));
 
             const dateDiv = document.createElement('div'); dateDiv.className = 'date';
             dateDiv.textContent = _prettyDateFromId(job.id);
             const fnDiv = document.createElement('div'); fnDiv.className = 'filename';
             fnDiv.textContent = job.filename || job.id;
-            const badges = document.createElement('div'); badges.className = 'badges'; badges.style.marginTop = 'auto';
+            const badges = document.createElement('div'); badges.className = 'badges';
             const b1 = document.createElement('div'); b1.className = 'badge'; b1.textContent = (job.duration || 0).toFixed(1) + 's'; badges.appendChild(b1);
             const b2 = document.createElement('div'); b2.className = 'badge'; b2.textContent = (job.segments || []).length + ' Turns'; badges.appendChild(b2);
 
             body.appendChild(dateDiv); body.appendChild(fnDiv); body.appendChild(badges);
-            card.appendChild(del); card.appendChild(body);
+
+            const delBtn = document.createElement('button');
+            delBtn.style.cssText = 'background:none; border:none; cursor:pointer; color:var(--text-muted); padding:6px; border-radius:6px; flex-shrink:0;';
+            delBtn.title = 'Delete';
+            delBtn.innerHTML = '<svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 6h18"></path><path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
+            delBtn.addEventListener('click', (ev) => deleteHistory(ev, job.id, card));
+
+            card.appendChild(body); card.appendChild(delBtn);
             return card;
         }
 
         function _buildChainCard(chain, idx) {
             const card = document.createElement('div');
             card.className = 'history-card';
-            card.style.position = 'relative';
             card.style.borderLeft = '3px solid var(--accent)';
+            card.style.flexWrap = 'wrap';
 
             const totalDur = (chain.member_calls || []).reduce((s, c) => s + (c.duration || 0), 0);
             const nCalls = (chain.member_calls || []).length;
 
-            const tag = document.createElement('div');
-            tag.style.cssText = 'position:absolute; top:10px; right:10px; z-index:10; font-size:0.7rem; color:var(--accent); letter-spacing:0.08em; text-transform:uppercase; font-weight:700;';
-            tag.textContent = 'Chain';
-            card.appendChild(tag);
+            const body = document.createElement('div');
+            body.style.cssText = 'flex:1; display:flex; align-items:center; gap:16px; min-width:0;';
 
             const dateDiv = document.createElement('div'); dateDiv.className = 'date';
             dateDiv.textContent = chain.created_at ? chain.created_at.substring(0, 10) : 'Recent';
+
             const labelDiv = document.createElement('div'); labelDiv.className = 'filename';
             labelDiv.textContent = chain.label || chain.customer_identifier || chain.slug;
 
-            const badges = document.createElement('div'); badges.className = 'badges'; badges.style.marginTop = 'auto';
+            const tag = document.createElement('span'); tag.className = 'badge badge-accent';
+            tag.textContent = 'Chain';
+
+            const badges = document.createElement('div'); badges.className = 'badges';
+            badges.appendChild(tag);
             const b1 = document.createElement('div'); b1.className = 'badge'; b1.textContent = nCalls + ' Calls'; badges.appendChild(b1);
             const b2 = document.createElement('div'); b2.className = 'badge'; b2.textContent = totalDur.toFixed(0) + 's total'; badges.appendChild(b2);
             if (chain.closed) { const b3 = document.createElement('div'); b3.className = 'badge'; b3.textContent = 'Closed'; badges.appendChild(b3); }
 
-            const open = document.createElement('div');
-            open.style.cssText = 'margin-top:10px; display:flex; gap:8px; flex-wrap:wrap;';
+            body.appendChild(dateDiv); body.appendChild(labelDiv); body.appendChild(badges);
+
+            const actions = document.createElement('div');
+            actions.style.cssText = 'display:flex; gap:8px; flex-shrink:0;';
             const viewBtn = document.createElement('button');
             viewBtn.textContent = 'View Combined →';
-            viewBtn.style.cssText = 'padding:6px 12px; background:var(--primary); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:0.85rem; font-weight:600;';
-            viewBtn.addEventListener('click', () => renderChainDashboard(chain));
-            open.appendChild(viewBtn);
+            viewBtn.style.cssText = 'padding:6px 12px; background:var(--primary); color:#fff; border:none; border-radius:6px; cursor:pointer; font-size:0.8rem; font-weight:600;';
+            viewBtn.addEventListener('click', (e) => { e.stopPropagation(); renderChainDashboard(chain); });
 
             const expandBtn = document.createElement('button');
             expandBtn.textContent = 'Members';
-            expandBtn.style.cssText = 'padding:6px 12px; background:var(--surface-2); color:var(--text-muted); border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:0.85rem; font-family:inherit;';
+            expandBtn.style.cssText = 'padding:6px 12px; background:var(--surface-2); color:var(--text-muted); border:1px solid var(--border); border-radius:6px; cursor:pointer; font-size:0.8rem; font-family:inherit;';
+
             const memberPanel = document.createElement('div');
-            memberPanel.style.cssText = 'display:none; margin-top:10px; padding:10px; background:rgba(0,0,0,0.25); border-radius:6px;';
+            memberPanel.style.cssText = 'display:none; margin-top:12px; padding:12px; background:var(--surface-2); border:1px solid var(--border); border-radius:8px; width:100%; flex-basis:100%;';
             (chain.member_calls || []).forEach((m, mIdx) => {
                 const mRow = document.createElement('div');
                 mRow.style.cssText = 'display:flex; align-items:center; gap:10px; padding:6px 0; cursor:pointer;';
                 mRow.addEventListener('click', () => renderDashboard(m));
                 const num = document.createElement('span'); num.textContent = String(mIdx + 1); num.style.cssText = 'color:var(--accent); font-weight:700; width:24px;';
-                const fn = document.createElement('span'); fn.textContent = m.filename; fn.style.cssText = 'flex:1; font-size:0.85rem; font-family:monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;';
+                const fn = document.createElement('span'); fn.textContent = m.filename; fn.style.cssText = 'flex:1; font-size:0.85rem; font-family:ui-monospace, monospace; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; color:var(--text);';
                 const dur = document.createElement('span'); dur.textContent = (m.duration || 0).toFixed(0) + 's'; dur.style.cssText = 'color:var(--text-muted); font-size:0.8rem;';
                 mRow.appendChild(num); mRow.appendChild(fn); mRow.appendChild(dur);
                 memberPanel.appendChild(mRow);
             });
-            expandBtn.addEventListener('click', () => {
+            expandBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
                 memberPanel.style.display = memberPanel.style.display === 'none' ? 'block' : 'none';
             });
-            open.appendChild(expandBtn);
 
-            card.appendChild(dateDiv); card.appendChild(labelDiv); card.appendChild(badges);
-            card.appendChild(open); card.appendChild(memberPanel);
+            actions.appendChild(viewBtn); actions.appendChild(expandBtn);
+
+            card.appendChild(body); card.appendChild(actions); card.appendChild(memberPanel);
             return card;
         }
 

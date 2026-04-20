@@ -680,6 +680,53 @@ async def get_chain_transcript_endpoint(chain_id: str):
         raise HTTPException(status_code=404, detail="Chain not found")
     return JSONResponse(content=chain_mod.rebuild_chain_transcript(chain_id))
 
+
+# --- Chain summary (Slice 2) ------------------------------------------------
+
+# Tracks chains that are currently being summarized so concurrent requests
+# return 409 instead of redundantly calling the LLM.
+_chain_summary_in_flight: set[str] = set()
+
+
+@app.get("/api/chain/{chain_id}/summary")
+async def get_chain_summary_endpoint(chain_id: str):
+    """Return the cached chain summary plus a staleness indicator. Never
+    triggers generation — use POST /summarize for that."""
+    chain_id = _safe_chain_id(chain_id)
+    manifest = chain_mod.get_chain(chain_id)
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chain not found")
+    result = chain_mod.get_chain_summary(chain_id)
+    result["generating"] = chain_id in _chain_summary_in_flight
+    return JSONResponse(content=result)
+
+
+@app.post("/api/chain/{chain_id}/summarize")
+async def summarize_chain_endpoint(chain_id: str):
+    """Run chain-level LLM summarization. Blocking (~30–120s)."""
+    chain_id = _safe_chain_id(chain_id)
+    manifest = chain_mod.get_chain(chain_id)
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chain not found")
+    if chain_id in _chain_summary_in_flight:
+        raise HTTPException(status_code=409, detail="Chain summary is already generating.")
+
+    cfg = global_state.get("cfg") or PipelineConfig()
+    if not cfg.openai_api_key:
+        raise HTTPException(status_code=400, detail="OPENAI_API_KEY is required for chain summarization.")
+
+    _chain_summary_in_flight.add(chain_id)
+    try:
+        logger.info(f"Starting chain summary for {chain_id}")
+        # Run the blocking LLM call in a threadpool so we don't block the ASGI loop.
+        out = await asyncio.to_thread(chain_mod.summarize_chain, chain_id, cfg)
+        if "error" in out:
+            raise HTTPException(status_code=500, detail=out["error"])
+        logger.info(f"Chain summary complete for {chain_id}")
+        return JSONResponse(content=out)
+    finally:
+        _chain_summary_in_flight.discard(chain_id)
+
 # Mount the static directory to serve the GUI Dashboard at root
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")
 

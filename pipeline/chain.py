@@ -16,6 +16,7 @@ to signal that no more calls will be added.
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import re
@@ -54,6 +55,10 @@ def _manifest_path(chain_id: str) -> str:
 
 def _chain_transcript_path(chain_id: str) -> str:
     return os.path.join(CHAINS_DIR, chain_id, "chain_transcript.json")
+
+
+def _chain_summary_path(chain_id: str) -> str:
+    return os.path.join(CHAINS_DIR, chain_id, "chain_summary.json")
 
 
 def _load_manifest(chain_id: str) -> dict | None:
@@ -296,3 +301,309 @@ def rebuild_chain_transcript(chain_id: str) -> dict:
         json.dump(out, f, ensure_ascii=False, indent=2)
 
     return out
+
+
+# -----------------------------------------------------------------------------
+# Chain-level summary (Slice 2)
+# -----------------------------------------------------------------------------
+
+# Per-call transcript excerpt sizes when we need to trim (very long chains).
+_TRANSCRIPT_HEAD_TAIL_SEGS = 30
+_TRANSCRIPT_FULL_THRESHOLD_SEGS = 600  # chains ≤ this many total segments get full fidelity
+
+
+def _manifest_signature(chain_id: str) -> str:
+    """
+    Deterministic signature of a chain's "shape" — id list, ordering, and the
+    sha256 of each member's transcript.json. Changes when any member is added,
+    removed, reordered, or its transcript content changes.
+    """
+    manifest = _load_manifest(chain_id)
+    if manifest is None:
+        return ""
+    h = hashlib.sha256()
+    h.update(manifest["id"].encode())
+    for call in manifest["calls"]:
+        h.update(f"|{call['index']}|{call['dir']}".encode())
+        p = _call_transcript_path(call["dir"])
+        if os.path.exists(p):
+            with open(p, "rb") as f:
+                h.update(f.read())
+    return h.hexdigest()
+
+
+def _prepare_chain_prompt_inputs(chain_id: str) -> dict | None:
+    """
+    Assemble the three things the chain-summary LLM call needs:
+    - `per_call_summaries`: list of {call_index, duration, summary}
+    - `transcript_text`: combined transcript string, each segment line prefixed
+      with `[S<id>/C<index>]` so the LLM can cite exactly
+    - `chain_context`: {call_index: segments[]} for the citation resolver
+    Returns None if the chain has no members with transcripts yet.
+    """
+    manifest = _load_manifest(chain_id)
+    if manifest is None or not manifest["calls"]:
+        return None
+
+    per_call: list[dict] = []
+    chain_context: dict[int, list[dict]] = {}
+    lines: list[str] = []
+    total_segments = 0
+    loaded_any = False
+
+    # First pass: count total segments so we can decide full-vs-trim.
+    loaded_transcripts: list[tuple[int, str, dict]] = []  # (call_index, dir, data)
+    for call in manifest["calls"]:
+        data = _load_call_transcript(call["dir"])
+        if data is None:
+            continue
+        loaded_transcripts.append((call["index"], call["dir"], data))
+        total_segments += len(data.get("segments", []))
+    if not loaded_transcripts:
+        return None
+
+    use_full = total_segments <= _TRANSCRIPT_FULL_THRESHOLD_SEGS
+
+    for call_index, call_dir, data in loaded_transcripts:
+        loaded_any = True
+        segments = data.get("segments", [])
+        chain_context[call_index] = segments
+        duration = float(data.get("metadata", {}).get("duration_seconds", 0.0) or 0.0)
+
+        per_call.append({
+            "call_index": call_index,
+            "dir": call_dir,
+            "duration_seconds": duration,
+            "summary": data.get("summary"),
+        })
+
+        # Boundary label for the LLM
+        lines.append(f"\n=== Call {call_index} (dir={call_dir}, duration={duration:.0f}s) ===")
+
+        if use_full:
+            slice_segs = segments
+        else:
+            # Head + tail excerpt when transcript is too big to fit.
+            if len(segments) <= 2 * _TRANSCRIPT_HEAD_TAIL_SEGS:
+                slice_segs = segments
+            else:
+                head = segments[:_TRANSCRIPT_HEAD_TAIL_SEGS]
+                tail = segments[-_TRANSCRIPT_HEAD_TAIL_SEGS:]
+                slice_segs = head + [{"_excerpt_gap": True}] + tail
+
+        for seg in slice_segs:
+            if seg.get("_excerpt_gap"):
+                lines.append("    … [transcript excerpt trimmed for length] …")
+                continue
+            role = (seg.get("role") or seg.get("speaker") or "UNK").upper()
+            sid = seg.get("id")
+            t0 = float(seg.get("t0", 0.0))
+            mins, secs = int(t0 // 60), int(t0 % 60)
+            text = (seg.get("text") or "").strip()
+            lines.append(f"[S{sid}/C{call_index}] [{mins:02d}:{secs:02d}] {role}: {text}")
+
+    if not loaded_any:
+        return None
+
+    return {
+        "per_call_summaries": per_call,
+        "transcript_text": "\n".join(lines),
+        "chain_context": chain_context,
+        "truncated": not use_full,
+        "total_segments": total_segments,
+        "chain_label": manifest.get("label") or manifest.get("slug"),
+    }
+
+
+def _build_chain_summary_prompt(inputs: dict) -> tuple[str, str]:
+    """Return (system_prompt, user_prompt) for the chain-level summarizer."""
+    freed_context = (
+        "FREED DOMAIN CONTEXT:\n"
+        "- DRP: settlement at ~45% of enrolled debt. Service fee: 15%+GST. "
+        "Total SPA savings required: ~62.7%.\n"
+        "- DCP: multiple EMIs merged into one via third-party lender.\n"
+        "- DEP: structured accelerated repayment plan.\n"
+        "- SPA = Special Purpose Account (escrow for settlements).\n"
+        "- CHPP / FREED Shield / i-FREED are ancillary products.\n"
+        "- Common compliance points: borrower rights, credit score impact, "
+        "  accurate fee/settlement figures, no false promises.\n"
+    )
+
+    system_prompt = (
+        "You are a senior sales/audit analyst reviewing a SERIES of related calls "
+        "between the same FREED customer and one or more agents. Your output "
+        "summarizes the ARC ACROSS CALLS — not each call separately.\n\n"
+        + freed_context +
+        "\n"
+        "HARD REQUIREMENTS:\n"
+        "- Cite every specific detail with a compound reference `[S<id>/C<index>]` "
+        "  copied EXACTLY from the `[S<id>/C<index>]` prefixes in the transcript below.\n"
+        "- NEVER invent IDs. NEVER cite with timestamps `[MM:SS]` or single-call `[S<id>]`.\n"
+        "- If something is unclear from the transcript, write 'Not clearly specified in the chain.'\n"
+        "- Preserve financial numbers exactly as spoken.\n"
+        "- Describe the ARC: what changed between calls, what objections were "
+        "  raised/resolved, how sentiment moved, what finally happened.\n"
+        "- Critical moments should be genuinely pivotal — 3 to 6 total across the series.\n"
+    )
+
+    per_call_block = json.dumps(
+        [{"call_index": p["call_index"], "summary": p.get("summary")} for p in inputs["per_call_summaries"]],
+        ensure_ascii=False,
+        indent=2,
+    )
+
+    truncation_note = (
+        "\n\nNOTE: Transcript is excerpted (head + tail per long call) to fit the context window. "
+        "Per-call summaries above are authoritative; transcript excerpts are for citation anchoring.\n"
+        if inputs.get("truncated") else ""
+    )
+
+    user_prompt = (
+        f"Chain label: {inputs.get('chain_label') or 'Unlabeled chain'}\n"
+        f"Total calls: {len(inputs['per_call_summaries'])}\n"
+        f"Total segments: {inputs['total_segments']}\n\n"
+        f"Per-call summaries (pre-computed):\n{per_call_block}\n"
+        f"{truncation_note}\n"
+        f"Combined transcript (with compound [S/C] citations to copy into your output):\n"
+        f"{inputs['transcript_text']}"
+    )
+    return system_prompt, user_prompt
+
+
+def summarize_chain(chain_id: str, cfg) -> dict:
+    """
+    Generate a chain-level structured summary. Blocking LLM call.
+    On success writes `chain_summary.json` and returns:
+        { summary: {...}, generated_at, manifest_sig, stale: False }
+    On empty chain returns { error: ... }.
+    """
+    from pydantic import BaseModel, Field
+    import openai
+
+    inputs = _prepare_chain_prompt_inputs(chain_id)
+    if inputs is None:
+        return {"error": "Chain has no members with transcripts yet."}
+
+    # --- Pydantic schema --------------------------------------------------
+    class ChainCallBreakdown(BaseModel):
+        call_index: int
+        role_in_arc: str
+        one_line_outcome: str
+
+    class ObjectionLifecycle(BaseModel):
+        objection: str
+        raised_on_call: int
+        raised_quote: str = Field(description="Verbatim quote with [S<id>/C<index>] citation.")
+        resolved_on_call: int | None
+        resolution_quote: str | None
+        status: str = Field(description="Resolved / Partially Resolved / Unresolved / Deflected")
+
+    class RecurringTopic(BaseModel):
+        topic: str
+        mentioned_on_calls: list[int]
+        significance: str
+
+    class SentimentPoint(BaseModel):
+        call_index: int
+        sentiment: str
+        direction_from_prev: str
+        evidence: str = Field(description="Quote with [S<id>/C<index>] citation.")
+
+    class ConversionPoint(BaseModel):
+        call_index: int
+        lead_probability: str
+        pivotal_moment: str = Field(description="With [S<id>/C<index>] citation.")
+
+    class ComplianceSnapshot(BaseModel):
+        items_covered_in_chain: list[str]
+        items_missed_entirely: list[str]
+        compliance_flags_by_call: str
+
+    class CriticalMoment(BaseModel):
+        call_index: int
+        timestamp_in_call: str
+        description: str
+        quote: str = Field(description="Verbatim with [S<id>/C<index>] citation.")
+
+    class ChainSummary(BaseModel):
+        series_arc: str
+        final_outcome: str
+        outcome_evidence: str
+        total_calls: int
+        spanning_duration_summary: str
+        call_breakdown: list[ChainCallBreakdown]
+        customer_initial_state: str
+        customer_final_state: str
+        sentiment_trajectory: list[SentimentPoint]
+        objections_lifecycle: list[ObjectionLifecycle]
+        recurring_topics: list[RecurringTopic]
+        agent_consistency: str
+        compliance_snapshot: ComplianceSnapshot
+        chain_quality_score: str
+        conversion_trajectory: list[ConversionPoint]
+        critical_moments: list[CriticalMoment]
+
+    # --- LLM call ---------------------------------------------------------
+    system_prompt, user_prompt = _build_chain_summary_prompt(inputs)
+
+    try:
+        client = openai.OpenAI(
+            api_key=cfg.openai_api_key,
+            timeout=cfg.openai_summary_timeout_s,
+            max_retries=cfg.openai_max_retries,
+        )
+        response = client.beta.chat.completions.parse(
+            model=cfg.summary_model,
+            messages=[
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            response_format=ChainSummary,
+        )
+        raw = json.loads(response.choices[0].message.content)
+    except Exception as e:
+        return {"error": f"Chain summarization failed: {e}"}
+
+    # --- Resolve compound [S/C] citations to clickable links --------------
+    from pipeline.reconstruct import verify_and_inject_inline_citations
+    resolved = verify_and_inject_inline_citations(
+        raw, transcript_segments=[], chain_context=inputs["chain_context"],
+    )
+
+    payload = {
+        "generated_at": _now_iso(),
+        "manifest_sig": _manifest_signature(chain_id),
+        "summary": resolved,
+    }
+
+    os.makedirs(os.path.join(CHAINS_DIR, chain_id), exist_ok=True)
+    with open(_chain_summary_path(chain_id), "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+
+    return {**payload, "stale": False}
+
+
+def get_chain_summary(chain_id: str) -> dict:
+    """
+    Return the cached chain summary with a staleness indicator. Does NOT
+    trigger generation. Returned shape:
+        { summary: dict|None, generated_at: str|None, stale: bool, reason: str|None }
+    """
+    p = _chain_summary_path(chain_id)
+    if not os.path.exists(p):
+        return {"summary": None, "generated_at": None, "stale": True, "reason": "never_generated"}
+
+    try:
+        with open(p, "r", encoding="utf-8") as f:
+            cached = json.load(f)
+    except (OSError, json.JSONDecodeError):
+        return {"summary": None, "generated_at": None, "stale": True, "reason": "cache_corrupt"}
+
+    current_sig = _manifest_signature(chain_id)
+    stale = cached.get("manifest_sig") != current_sig
+    return {
+        "summary": cached.get("summary"),
+        "generated_at": cached.get("generated_at"),
+        "stale": stale,
+        "reason": "chain_mutated" if stale else None,
+    }

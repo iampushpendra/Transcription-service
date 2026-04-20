@@ -2926,10 +2926,279 @@
                 }
             });
 
-            // Hide per-call panels that don't apply to chain view (summary, emotion, etc.)
-            ['dash-summary-panel', 'dash-emotion-panel', 'dash-trigger-panel', 'dash-sarcasm-panel', 'dash-audit-panel', 'dash-checklist-panel'].forEach(id => {
+            // Hide per-call panels that don't apply to chain view (emotion, triggers, etc.)
+            ['dash-emotion-panel', 'dash-trigger-panel', 'dash-sarcasm-panel', 'dash-audit-panel', 'dash-checklist-panel'].forEach(id => {
                 const el = document.getElementById(id); if (el) el.style.display = 'none';
             });
+
+            // Show chain-level summary in the summary panel.
+            renderChainSummaryPanel(chain.id);
+        }
+
+        // --- Chain-level summary (Slice 2) -------------------------------
+        function _chainSummaryContainer() {
+            // Reuse the existing summary panel; fall back to any summary-dedicated container.
+            const target = document.getElementById('dash-summary-panel')
+                || document.getElementById('dash-summary-content')
+                || document.getElementById('dash-summary');
+            if (target) target.style.display = '';
+            return target;
+        }
+
+        async function renderChainSummaryPanel(chainId) {
+            const host = _chainSummaryContainer();
+            if (!host) return;
+
+            // Draw a loading state while we fetch cached summary.
+            while (host.firstChild) host.removeChild(host.firstChild);
+            const loading = document.createElement('div');
+            loading.style.cssText = 'padding:14px 18px; color:var(--text-muted);';
+            loading.textContent = 'Loading chain summary…';
+            host.appendChild(loading);
+
+            let data;
+            try {
+                const res = await fetch('/api/chain/' + encodeURIComponent(chainId) + '/summary');
+                data = await res.json();
+            } catch (e) {
+                host.removeChild(loading);
+                const err = document.createElement('div');
+                err.style.cssText = 'padding:14px 18px; color:#fca5a5;';
+                err.textContent = 'Could not load chain summary: ' + e.message;
+                host.appendChild(err);
+                return;
+            }
+
+            while (host.firstChild) host.removeChild(host.firstChild);
+
+            const header = document.createElement('div');
+            header.style.cssText = 'display:flex; justify-content:space-between; align-items:center; margin-bottom:14px; padding:10px 16px; border-bottom:1px solid var(--border-color);';
+            const title = document.createElement('div');
+            title.style.cssText = 'font-family:Outfit,sans-serif; font-size:1.05rem; font-weight:600;';
+            title.textContent = 'Chain Summary';
+            const actions = document.createElement('div'); actions.style.cssText = 'display:flex; gap:8px; align-items:center;';
+
+            if (data.stale) {
+                const staleTag = document.createElement('span');
+                staleTag.style.cssText = 'font-size:0.75rem; padding:3px 8px; background:rgba(251,191,36,0.15); color:#fbbf24; border-radius:6px; font-weight:600;';
+                staleTag.textContent = data.reason === 'never_generated' ? 'NOT GENERATED' : 'STALE';
+                actions.appendChild(staleTag);
+            }
+
+            const genBtn = document.createElement('button');
+            genBtn.textContent = data.summary ? 'Regenerate' : 'Generate Summary';
+            genBtn.className = 'btn';
+            genBtn.style.cssText = 'padding:6px 14px; font-size:0.85rem;';
+            genBtn.addEventListener('click', () => triggerChainSummary(chainId));
+            if (data.generating) { genBtn.disabled = true; genBtn.textContent = 'Generating…'; }
+            actions.appendChild(genBtn);
+
+            header.appendChild(title); header.appendChild(actions);
+            host.appendChild(header);
+
+            if (!data.summary) {
+                const empty = document.createElement('div');
+                empty.style.cssText = 'padding:30px; text-align:center; color:var(--text-muted);';
+                empty.textContent = 'This chain has no summary yet. Generate one to see the arc across calls.';
+                host.appendChild(empty);
+                return;
+            }
+
+            const body = document.createElement('div');
+            body.style.cssText = 'padding:0 18px 20px; display:flex; flex-direction:column; gap:16px;';
+            _renderChainSummarySections(body, data.summary);
+            host.appendChild(body);
+
+            if (data.generated_at) {
+                const footer = document.createElement('div');
+                footer.style.cssText = 'padding:10px 18px; color:var(--text-muted); font-size:0.8rem;';
+                footer.textContent = 'Generated at ' + data.generated_at;
+                host.appendChild(footer);
+            }
+        }
+
+        async function triggerChainSummary(chainId) {
+            const host = _chainSummaryContainer();
+            if (!host) return;
+            while (host.firstChild) host.removeChild(host.firstChild);
+            const note = document.createElement('div');
+            note.style.cssText = 'padding:20px; text-align:center; color:var(--text-muted);';
+            note.textContent = 'Generating chain summary — this takes ~30–120 seconds…';
+            host.appendChild(note);
+
+            try {
+                const res = await fetch('/api/chain/' + encodeURIComponent(chainId) + '/summarize', { method: 'POST' });
+                if (!res.ok) throw new Error(await res.text());
+            } catch (e) {
+                while (host.firstChild) host.removeChild(host.firstChild);
+                const err = document.createElement('div');
+                err.style.cssText = 'padding:20px; color:#fca5a5;';
+                err.textContent = 'Chain summary failed: ' + e.message;
+                host.appendChild(err);
+                return;
+            }
+            renderChainSummaryPanel(chainId);
+        }
+
+        function _renderChainSummarySections(host, summary) {
+            function section(title, contentBuilder) {
+                const sec = document.createElement('div');
+                sec.style.cssText = 'padding:14px 16px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:10px;';
+                const h = document.createElement('div');
+                h.style.cssText = 'font-family:Outfit,sans-serif; font-size:0.9rem; font-weight:700; letter-spacing:0.04em; text-transform:uppercase; color:var(--accent); margin-bottom:8px;';
+                h.textContent = title;
+                sec.appendChild(h);
+                contentBuilder(sec);
+                host.appendChild(sec);
+            }
+
+            // series_arc is pre-resolved HTML (contains scrollToTime links)
+            section('Series Arc', s => {
+                const p = document.createElement('div'); p.style.cssText = 'line-height:1.6;';
+                p.innerHTML = summary.series_arc || ''; // server-resolved HTML, safe
+                s.appendChild(p);
+            });
+
+            section('Outcome', s => {
+                const line = document.createElement('div');
+                line.innerHTML = '<strong>' + esc(summary.final_outcome || '') + '</strong>';
+                s.appendChild(line);
+                if (summary.outcome_evidence) {
+                    const ev = document.createElement('div');
+                    ev.style.cssText = 'margin-top:4px; color:var(--text-muted); font-size:0.9rem;';
+                    ev.innerHTML = summary.outcome_evidence;
+                    s.appendChild(ev);
+                }
+            });
+
+            if (summary.call_breakdown?.length) {
+                section('Call Breakdown', s => {
+                    (summary.call_breakdown).forEach(c => {
+                        const row = document.createElement('div');
+                        row.style.cssText = 'display:flex; gap:10px; padding:6px 0; border-bottom:1px dashed var(--border-color); font-size:0.9rem;';
+                        const b = document.createElement('span');
+                        b.style.cssText = 'min-width:46px; font-weight:700; color:var(--accent);';
+                        b.textContent = 'Call ' + c.call_index;
+                        const txt = document.createElement('span');
+                        txt.textContent = (c.role_in_arc || '') + ' — ' + (c.one_line_outcome || '');
+                        row.appendChild(b); row.appendChild(txt);
+                        s.appendChild(row);
+                    });
+                });
+            }
+
+            section('Customer Journey', s => {
+                const line = document.createElement('div');
+                line.innerHTML =
+                    '<span style="color:var(--text-muted);">Initial:</span> ' + esc(summary.customer_initial_state || '') +
+                    ' → <span style="color:var(--text-muted);">Final:</span> ' + esc(summary.customer_final_state || '');
+                s.appendChild(line);
+                if (summary.sentiment_trajectory?.length) {
+                    const list = document.createElement('ul');
+                    list.style.cssText = 'margin:8px 0 0; padding-left:18px; line-height:1.6;';
+                    summary.sentiment_trajectory.forEach(pt => {
+                        const li = document.createElement('li');
+                        li.innerHTML = 'Call ' + pt.call_index + ': <strong>' + esc(pt.sentiment) + '</strong> (' + esc(pt.direction_from_prev) + ') — ' + (pt.evidence || '');
+                        list.appendChild(li);
+                    });
+                    s.appendChild(list);
+                }
+            });
+
+            if (summary.objections_lifecycle?.length) {
+                section('Objections Lifecycle', s => {
+                    summary.objections_lifecycle.forEach(o => {
+                        const card = document.createElement('div');
+                        card.style.cssText = 'padding:10px 12px; margin-bottom:8px; background:rgba(0,0,0,0.15); border-left:3px solid var(--accent); border-radius:6px;';
+                        const head = document.createElement('div');
+                        head.style.cssText = 'display:flex; justify-content:space-between; font-weight:600;';
+                        const t = document.createElement('span'); t.textContent = o.objection || '';
+                        const st = document.createElement('span');
+                        st.textContent = o.status || '';
+                        st.style.cssText = 'font-size:0.75rem; padding:2px 8px; border-radius:6px; background:var(--accent-bg); color:var(--accent);';
+                        head.appendChild(t); head.appendChild(st);
+                        card.appendChild(head);
+                        const body = document.createElement('div');
+                        body.style.cssText = 'margin-top:6px; font-size:0.9rem; line-height:1.5;';
+                        body.innerHTML =
+                            '<div>Raised on Call ' + o.raised_on_call + ': ' + (o.raised_quote || '') + '</div>' +
+                            (o.resolved_on_call
+                                ? '<div>Resolved on Call ' + o.resolved_on_call + ': ' + (o.resolution_quote || '') + '</div>'
+                                : '<div style="color:var(--text-muted);">Not resolved across the chain.</div>');
+                        card.appendChild(body);
+                        s.appendChild(card);
+                    });
+                });
+            }
+
+            if (summary.recurring_topics?.length) {
+                section('Recurring Topics', s => {
+                    summary.recurring_topics.forEach(rt => {
+                        const row = document.createElement('div');
+                        row.style.cssText = 'padding:4px 0; font-size:0.9rem;';
+                        row.innerHTML = '<strong>' + esc(rt.topic || '') + '</strong> — calls ' + (rt.mentioned_on_calls || []).join(', ') +
+                            ' · <span style="color:var(--text-muted);">' + esc(rt.significance || '') + '</span>';
+                        s.appendChild(row);
+                    });
+                });
+            }
+
+            if (summary.compliance_snapshot) {
+                section('Compliance Snapshot', s => {
+                    const covered = (summary.compliance_snapshot.items_covered_in_chain || []);
+                    const missed  = (summary.compliance_snapshot.items_missed_entirely || []);
+                    const flags   = summary.compliance_snapshot.compliance_flags_by_call || '';
+
+                    if (covered.length) {
+                        const ch = document.createElement('div'); ch.style.marginBottom = '6px';
+                        ch.innerHTML = '<span style="color:#86efac; font-weight:600;">Covered:</span>';
+                        s.appendChild(ch);
+                        const ul = document.createElement('ul');
+                        ul.style.cssText = 'margin:0 0 6px; padding-left:18px; line-height:1.5;';
+                        covered.forEach(i => { const li = document.createElement('li'); li.innerHTML = i; ul.appendChild(li); });
+                        s.appendChild(ul);
+                    }
+                    if (missed.length) {
+                        const mh = document.createElement('div'); mh.style.marginBottom = '6px';
+                        mh.innerHTML = '<span style="color:#fca5a5; font-weight:600;">Missed entirely:</span>';
+                        s.appendChild(mh);
+                        const ul = document.createElement('ul');
+                        ul.style.cssText = 'margin:0 0 6px; padding-left:18px; line-height:1.5;';
+                        missed.forEach(i => { const li = document.createElement('li'); li.textContent = i; ul.appendChild(li); });
+                        s.appendChild(ul);
+                    }
+                    if (flags) {
+                        const f = document.createElement('div'); f.style.cssText = 'margin-top:4px; color:var(--text-muted); font-size:0.85rem;';
+                        f.innerHTML = '<span style="font-weight:600;">Flags:</span> ' + esc(flags);
+                        s.appendChild(f);
+                    }
+                });
+            }
+
+            if (summary.agent_consistency) {
+                section('Agent Consistency', s => {
+                    const d = document.createElement('div'); d.textContent = summary.agent_consistency; s.appendChild(d);
+                });
+            }
+
+            if (summary.chain_quality_score) {
+                section('Chain Quality', s => {
+                    const d = document.createElement('div'); d.textContent = summary.chain_quality_score; s.appendChild(d);
+                });
+            }
+
+            if (summary.critical_moments?.length) {
+                section('Critical Moments', s => {
+                    summary.critical_moments.forEach(m => {
+                        const row = document.createElement('div');
+                        row.style.cssText = 'padding:8px 10px; margin-bottom:6px; background:rgba(0,0,0,0.15); border-radius:6px; font-size:0.9rem; line-height:1.5;';
+                        row.innerHTML =
+                            '<div><strong>Call ' + m.call_index + ' @ ' + esc(m.timestamp_in_call || '') + '</strong> — ' + esc(m.description || '') + '</div>' +
+                            '<div style="color:var(--text-muted); margin-top:2px;">' + (m.quote || '') + '</div>';
+                        s.appendChild(row);
+                    });
+                });
+            }
         }
 
         // --- Dashboard Rendering (from JSON) ---

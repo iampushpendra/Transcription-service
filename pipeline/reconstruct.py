@@ -111,6 +111,10 @@ def reconstruct(
     for seg in merged:
         seg["text"] = " ".join(seg["text"].split())
 
+    # Assign stable zero-indexed IDs used for LLM citations (e.g., [S42] → seg[42].t0).
+    for i, seg in enumerate(merged):
+        seg["id"] = i
+
     print(f"🔄 Reconstructed: {len(sorted_s)} → {len(merged)} segments")
     return merged
 
@@ -432,13 +436,16 @@ def summarize_call_structured(
     if not transcript:
         return {"error": "Empty transcript"}
 
-    # Build transcript text for the prompt
+    # Build transcript text for the prompt.
+    # Each line is prefixed with [S<id>] so the LLM can cite segments exactly.
+    # Timestamps stay visible as context but the LLM is instructed to cite via S-IDs only.
     lines = []
-    for seg in transcript:
+    for i, seg in enumerate(transcript):
         role_label = seg.get("role", seg.get("speaker", "Unknown")).upper()
+        seg_id = seg.get("id", i)
         t0 = seg.get('t0', 0.0)
         timestamp = fmt(t0)[:8]
-        lines.append(f"[{timestamp}] {role_label}: {seg.get('text', '')}")
+        lines.append(f"[S{seg_id}] [{timestamp}] {role_label}: {seg.get('text', '')}")
     transcript_text = "\n".join(lines)
 
     # Build optional Acoustic & Behavioral Context block
@@ -512,7 +519,7 @@ def summarize_call_structured(
         "\n\nACOUSTIC CONTEXT USAGE (CRITICAL):\n"
         "You are provided with an '=== ACOUSTIC & BEHAVIORAL CONTEXT ==' block above the transcript.\n"
         "- Cross-reference this block when filling ALL evidence fields (pain_point_evidence, state_of_mind_evidence, conversion_evidence, customer_intent_signals).\n"
-        "- Cite hesitation signals or heated moments with timestamp and what it reveals.\n"
+        "- Cite hesitation signals or heated moments with an S-ID citation (e.g., `[S42]`) and what it reveals.\n"
         "- Dominant emotions and volatility MUST inform customer_state_of_mind_category.\n"
         "- Business signals (objections/triggers) MUST be reflected in conversion_analysis.\n"
         "- Keep all answers crisp \u2014 enrich with acoustic evidence, do NOT expand unnecessarily."
@@ -564,8 +571,9 @@ def summarize_call_structured(
         "FORMATTING:\n"
         "- Each distinct fact/observation gets its own bullet line starting with '- '.\n"
         "- NEVER pack multiple points into one paragraph.\n"
-        "- CITATIONS: After any specific detail, add transcript timestamp `[MM:SS]` immediately. "
-        "Use only timestamps from the transcript \u2014 never invent them.\n"
+        "- CITATIONS: After any specific detail, add a segment reference like `[S42]` immediately. "
+        "The ID must be copied EXACTLY from one of the `[S<number>]` prefixes in the numbered transcript below. "
+        "Never invent IDs. Never cite with timestamps like `[MM:SS]`.\n"
         "- SPEAKER ATTRIBUTION: Clearly distinguish AGENT vs CUSTOMER speech. "
         "Do NOT attribute agent pitch points to the customer.\n\n"
         "OVERVIEW FIELD:\n"
@@ -580,7 +588,7 @@ def summarize_call_structured(
         + checklist_reference
         + "\nFor each of the 21 items, evaluate and return: item description, category, "
         "status (Completed/Partially Completed/Not Done/N/A - Follow-up call), "
-        "and 1-line evidence (quote+timestamp if done, gap explanation if not).\n"
+        "and 1-line evidence (quote + S-ID citation if done, gap explanation if not).\n"
         "For FOLLOW-UP or EXISTING CUSTOMER calls, closure items (19-21) if truly not applicable: mark 'N/A - Follow-up call'.\n\n"
         "AUDIT COMPLIANCE FLAGS:\n"
         "Flag: false promises, threatening language, unauthorized commitments on behalf of FREED, "
@@ -596,10 +604,10 @@ def summarize_call_structured(
 
     class ProductServiceExplained(BaseModel):
         details_shared: str = Field(
-            description="Exact FREED program details explained \u2014 which program (DRP/DCP/DEP), how it works, what's included. One bullet per distinct detail with timestamp."
+            description="Exact FREED program details explained \u2014 which program (DRP/DCP/DEP), how it works, what's included. One bullet per distinct detail with S-ID citation."
         )
         benefits_mentioned: str = Field(
-            description="Specific benefits pitched: CHPP, FREED Shield, i-FREED app, SPA savings model, negotiation team, pre-litigation support. One bullet per benefit with timestamp."
+            description="Specific benefits pitched: CHPP, FREED Shield, i-FREED app, SPA savings model, negotiation team, pre-litigation support. One bullet per benefit with S-ID citation."
         )
         conditions_mentioned: str = Field(
             description="Conditions explained: delinquency requirement, credit score impact, tenure, saving commitment, service fee structure. One bullet per condition."
@@ -630,19 +638,19 @@ def summarize_call_structured(
 
     class CustomerAnalysis(BaseModel):
         biggest_pain_point: str = Field(
-            description="Primary hardship \u2014 why customer can't pay. Include exact trigger (job loss, medical, income drop, harassment). Cite verbatim quotes + timestamps."
+            description="Primary hardship \u2014 why customer can't pay. Include exact trigger (job loss, medical, income drop, harassment). Cite verbatim quotes + S-ID citations."
         )
         delinquency_status: str = Field(
             description="Current payment status \u2014 how many months overdue per account, which accounts are delinquent. Include specifics if mentioned."
         )
         most_appealing_aspect_and_moment_of_interest: str = Field(
-            description="Which FREED feature resonated most with the customer. At what timestamp did customer show interest or positively respond? Cite quotes."
+            description="Which FREED feature resonated most with the customer. At what moment did customer show interest or positively respond? Cite quotes with S-ID citations (e.g., `[S42]`)."
         )
         main_points_pitched: str = Field(
-            description="Agent's key pitch points \u2014 each as a separate bullet with timestamp. Focus on 5-6 strongest arguments made."
+            description="Agent's key pitch points \u2014 each as a separate bullet with S-ID citation. Focus on 5-6 strongest arguments made."
         )
         resolved_and_unresolved_questions: str = Field(
-            description="RESOLVED: question + agent answer + timestamp. UNRESOLVED: question + why not addressed. Use sub-bullets for each category."
+            description="RESOLVED: question + agent answer + S-ID. UNRESOLVED: question + why not addressed. Use sub-bullets for each category."
         )
         customer_state_of_mind: str = Field(
             description="Overall customer emotional state with specific quote evidence. Cross-reference acoustic emotion data if available. Note hesitation or buying signals."
@@ -656,47 +664,47 @@ def summarize_call_structured(
             description="Strictly one of: 'Harassment/Recovery Agent Calls', 'High EMI Burden', 'Job Loss/Income Drop', 'Medical Emergency', 'Debt Already Delinquent', 'Credit Score Concern', 'Unable to Pay (General)', 'Other'"
         )
         pain_point_evidence: str = Field(
-            description="2-3 specific quotes + timestamps proving the pain point category. Also cite acoustic hesitation signals or heated moments if available."
+            description="2-3 specific quotes + S-ID citations proving the pain point category. Also cite acoustic hesitation signals or heated moments if available."
         )
         customer_state_of_mind_category: str = Field(
             description="Strictly one of: 'Distressed/Panicked', 'Relieved/Hopeful', 'Skeptical/Hesitant', 'Angry/Frustrated', 'Neutral/Curious'. Must be consistent with acoustic emotion context if available."
         )
         state_of_mind_evidence: str = Field(
-            description="2-3 specific quotes + timestamps justifying the state. Include acoustic emotion signals (dominant emotion, volatility, hesitation phrases) if available."
+            description="2-3 specific quotes + S-ID citations justifying the state. Include acoustic emotion signals (dominant emotion, volatility, hesitation phrases) if available."
         )
         lead_conversion_probability: str = Field(
             description="Strictly one of: 'High', 'Medium', 'Low', 'Not Applicable'"
         )
         conversion_evidence: str = Field(
-            description="2-3 buying signals or objections with timestamps determining lead probability. Cross-reference acoustic business signals if available."
+            description="2-3 buying signals or objections with S-ID citations determining lead probability. Cross-reference acoustic business signals if available."
         )
         total_identified_debt_inr: int = Field(
             description="Sum of UNIQUE deduplicated loan outstanding amounts in INR. Each account counted ONCE at highest confirmed value. Use 0 if none mentioned."
         )
         major_keywords: list[str] = Field(
-            description="5-8 domain-specific keywords. Format: 'Keyword [MM:SS] \u2014 One-line context explaining significance.' Must include timestamp and context for each."
+            description="5-8 domain-specific keywords. Format: '**Keyword**[S42] \u2014 One-line context explaining significance.' Must include a segment S-ID citation for each."
         )
 
     class ConversionAnalysis(BaseModel):
         did_customer_enroll: str = Field(description="Strictly one of: 'Yes', 'No', 'Unclear'")
         enrollment_outcome_summary: str = Field(
-            description="What happened at end of call \u2014 did customer agree, ask for time, raise final objection? Be specific with timestamp."
+            description="What happened at end of call \u2014 did customer agree, ask for time, raise final objection? Be specific with S-ID citation."
         )
         dropoff_reasons: str = Field(
-            description="If no enrollment: each specific objection or hesitation with timestamp and whether agent addressed it. Write 'N/A - Customer enrolled' if enrolled."
+            description="If no enrollment: each specific objection or hesitation with S-ID citation and whether agent addressed it. Write 'N/A - Customer enrolled' if enrolled."
         )
         missed_opportunities: str = Field(
             description="Concrete moments where agent could have pivoted or closed better. Each as bullet with suggested alternative. Write 'N/A - Successfully enrolled' if enrolled."
         )
         customer_intent_signals: str = Field(
-            description="All signals of customer interest/hesitation with timestamps and label [+Positive] or [-Negative]. Cross-reference acoustic hesitation and buying trigger signals."
+            description="All signals of customer interest/hesitation with S-ID citations and label [+Positive] or [-Negative]. Cross-reference acoustic hesitation and buying trigger signals."
         )
 
     class ChecklistItem(BaseModel):
         item: str = Field(description="The checklist item description from the 21-item Sales Call Checklist")
         category: str = Field(description="One of: Basics, Debt Understanding, Affordability, Program Pitch, Account Checks, Value & Fees, Compliance, Verification, Closure")
         status: str = Field(description="One of: 'Completed', 'Partially Completed', 'Not Done', 'N/A - Follow-up call'")
-        evidence: str = Field(description="1-line: quote/timestamp if completed, or specific gap explanation if not done.")
+        evidence: str = Field(description="1-line: quote with S-ID citation (e.g., `[S42]`) if completed, or specific gap explanation if not done.")
 
     class AgentChecklist(BaseModel):
         checklist_items: list[ChecklistItem] = Field(
@@ -709,7 +717,7 @@ def summarize_call_structured(
             description="Items entirely skipped that are critical for compliance or conversion \u2014 especially items 15 (borrower rights), 16 (credit score), 8 (FREED explanation). List each with why it matters."
         )
         agent_strengths: str = Field(
-            description="2-3 things the agent did particularly well. Be specific with timestamps."
+            description="2-3 things the agent did particularly well. Be specific with S-ID citations."
         )
 
     class AuditTeamInsights(BaseModel):
@@ -723,7 +731,7 @@ def summarize_call_structured(
             description="List ANY compliance issues: false promises, incorrect figures, failure to disclose credit impact or borrower rights, unauthorized FREED commitments, pressure language. Write 'No compliance flags identified' if clean."
         )
         objections_raised_and_handling: str = Field(
-            description="For each major customer objection: OBJECTION: [quote+timestamp] | AGENT RESPONSE: [summary] | QUALITY: Well Handled / Partially Handled / Not Handled. One entry per objection."
+            description="For each major customer objection: OBJECTION: [quote with S-ID citation] | AGENT RESPONSE: [summary] | QUALITY: Well Handled / Partially Handled / Not Handled. One entry per objection."
         )
         recommended_next_action: str = Field(
             description="What should happen next: follow-up call (when + what to address), enrollment push, escalate to senior agent, send agreement, etc."
@@ -767,105 +775,218 @@ def summarize_call_structured(
 
 
 
-def verify_and_inject_inline_citations(data, transcript_segments: list[dict]):
-    """
-    Recursively search for citation patterns and verify/correct timestamps
-    against actual transcript segments.
-    
-    Handles both **Keyword**[MM:SS] and standalone [MM:SS] patterns.
-    Snaps LLM-generated timestamps to the nearest actual segment boundary.
-    """
-    import re
-    import difflib
+# --- Citation resolver constants ---------------------------------------------
 
+# Primary citation forms (preferred): **Keyword**[S42] and bare [S42]
+_BOLD_SID_PATTERN = re.compile(r'\*\*([^*]+)\*\*\[S(\d+)\]')
+_BARE_SID_PATTERN = re.compile(r'(?<![\w/])\[S(\d+)\](?!/)')  # single-call scope; exclude the /C<n> compound
+
+# Compound citations used inside chain-level artifacts: [S42/C2]
+_BOLD_COMPOUND_PATTERN = re.compile(r'\*\*([^*]+)\*\*\[S(\d+)/C(\d+)\]')
+_BARE_COMPOUND_PATTERN = re.compile(r'(?<![\w/])\[S(\d+)/C(\d+)\]')
+
+# Fallback: legacy [MM:SS] / [HH:MM:SS] timestamps
+_BOLD_MMSS_PATTERN = re.compile(r'\*\*([^*]+)\*\*\[(\d{1,2}:\d{2}(?::\d{2})?)\]')
+_BARE_MMSS_PATTERN = re.compile(r'(?<![\w/])\[(\d{1,2}:\d{2}(?::\d{2})?)\]')
+
+# Keyword-match window for MM:SS fallback. Tight on purpose; outside this window
+# the citation is dropped rather than mis-linked.
+_MMSS_KEYWORD_WINDOW_S = 10.0
+
+
+def _linkify_keyword(keyword: str, t0: float) -> str:
+    """Wrap a keyword in a clickable anchor that jumps to t0 in the transcript."""
+    return (
+        f'<a href="#" onclick="event.preventDefault(); scrollToTime({t0});" '
+        f'style="color: #38bdf8; text-decoration: none; font-weight: 600; '
+        f'border-bottom: 1px dotted rgba(56, 189, 248, 0.5); transition: all 0.2s;" '
+        f'onmouseover="this.style.color=\'#a78bfa\'; this.style.borderBottom=\'1px solid #a78bfa\';" '
+        f'onmouseout="this.style.color=\'#38bdf8\'; this.style.borderBottom=\'1px dotted rgba(56, 189, 248, 0.5)\';">'
+        f'{keyword}</a>'
+    )
+
+
+def _linkify_arrow(t0: float) -> str:
+    """Small superscript arrow link used for bare citations (no keyword to wrap)."""
+    return (
+        f'<a href="#" onclick="event.preventDefault(); scrollToTime({t0});" '
+        f'style="color: rgba(56, 189, 248, 0.7); text-decoration: none; cursor: pointer; '
+        f'font-size: 0.85em; margin-left: 3px; vertical-align: super; transition: all 0.2s;" '
+        f'onmouseover="this.style.color=\'#38bdf8\'" '
+        f'onmouseout="this.style.color=\'rgba(56, 189, 248, 0.7)\'" '
+        f'title="Jump to transcript">[↗]</a>'
+    )
+
+
+def _time_to_seconds(time_str: str) -> float:
+    parts = time_str.split(':')
+    if len(parts) == 3:
+        return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
+    return int(parts[0]) * 60 + int(parts[1])
+
+
+def _snap_mmss_with_keyword(
+    target_s: float,
+    keyword: str,
+    segments: list[dict],
+) -> float | None:
+    """
+    Hardened MM:SS fallback snap. Returns the anchor (t0 OR t1 — whichever is
+    actually closer) of the best segment where `keyword` appears within
+    ±_MMSS_KEYWORD_WINDOW_S of target_s. Returns None if no such segment — the
+    caller drops the citation rather than guessing.
+    """
+    if not keyword or not segments:
+        return None
+
+    kw_lower = keyword.lower().strip()
+    best_anchor: float | None = None
+    best_dist = float('inf')
+
+    for seg in segments:
+        t0 = float(seg.get('t0', 0.0))
+        t1 = float(seg.get('t1', t0))
+        dist_t0 = abs(t0 - target_s)
+        dist_t1 = abs(t1 - target_s)
+        # Distance from target to the segment (0 if inside it).
+        if t0 <= target_s <= t1:
+            dist = 0.0
+        else:
+            dist = min(dist_t0, dist_t1)
+        if dist > _MMSS_KEYWORD_WINDOW_S:
+            continue
+        if kw_lower not in seg.get('text', '').lower():
+            continue
+        if dist < best_dist:
+            best_dist = dist
+            # Use the actually-closer anchor so the jump lands as close as possible.
+            best_anchor = t0 if dist_t0 <= dist_t1 else t1
+
+    return best_anchor
+
+
+def verify_and_inject_inline_citations(
+    data,
+    transcript_segments: list[dict],
+    chain_context: dict[int, list[dict]] | None = None,
+):
+    """
+    Recursively resolve citations in LLM output to clickable transcript links.
+
+    Primary (single-call): `**Keyword**[S42]` / `[S42]` → exact ID lookup in
+    `transcript_segments`.
+
+    Primary (chain-level): `**Keyword**[S42/C2]` / `[S42/C2]` → look up call 2
+    in `chain_context` and resolve seg 42 inside it. Used inside chain-level
+    artifacts where a citation must identify both the call and the segment.
+
+    Fallback: `**Keyword**[MM:SS]` / `[MM:SS]` → snap to the closest segment
+    containing the keyword within ±10s. A bare `[MM:SS]` with no keyword falls
+    back to exact time-within-segment match or passes through unchanged.
+
+    Invalid references are dropped rather than misdirected. Any resolve
+    failure degrades to plain text — never raises.
+    """
     if isinstance(data, dict):
-        for k, v in data.items():
-            data[k] = verify_and_inject_inline_citations(v, transcript_segments)
+        return {k: verify_and_inject_inline_citations(v, transcript_segments, chain_context) for k, v in data.items()}
+    if isinstance(data, list):
+        return [verify_and_inject_inline_citations(item, transcript_segments, chain_context) for item in data]
+    if not isinstance(data, str):
         return data
-    elif isinstance(data, list):
-        return [verify_and_inject_inline_citations(item, transcript_segments) for item in data]
-    elif isinstance(data, str):
-        # Pattern 1: **Keyword**[MM:SS]
-        bold_pattern = re.compile(r'\*\*([^*]+)\*\*\[(\d{2}:\d{2}(?::\d{2})?)\]')
-        # Pattern 2: standalone [MM:SS] (not already inside an HTML tag)
-        standalone_pattern = re.compile(r'(?<!\w)\[(\d{2}:\d{2}(?::\d{2})?)\]')
-        
-        def _time_to_seconds(time_str: str) -> float:
-            parts = time_str.split(':')
-            if len(parts) == 3:
-                return int(parts[0]) * 3600 + int(parts[1]) * 60 + int(parts[2])
-            else:
-                return int(parts[0]) * 60 + int(parts[1])
-        
-        def _snap_to_nearest_segment(target_s: float, keyword: str | None = None) -> float | None:
-            """Find the nearest segment t0 within ±60s, preferring segments that contain the keyword."""
-            if not transcript_segments:
-                return None
-            
-            # First pass: look for keyword match within ±60s window
-            if keyword:
-                kw_lower = keyword.lower()
-                best_t0 = None
-                best_dist = float('inf')
-                for seg in transcript_segments:
-                    dist = min(abs(seg['t0'] - target_s), abs(seg['t1'] - target_s))
-                    if dist <= 60:  # 60s window
-                        seg_text = seg.get('text', '').lower()
-                        if kw_lower in seg_text:
-                            if dist < best_dist:
-                                best_dist = dist
-                                best_t0 = seg['t0']
-                        elif len(kw_lower.split()) <= 4:
-                            # Fuzzy check for multi-word keywords
-                            words = seg_text.split()
-                            kw_words = kw_lower.split()
-                            for i in range(max(0, len(words) - len(kw_words) + 1)):
-                                phrase = ' '.join(words[i:i+len(kw_words)])
-                                if difflib.SequenceMatcher(None, phrase, kw_lower).ratio() > 0.75:
-                                    if dist < best_dist:
-                                        best_dist = dist
-                                        best_t0 = seg['t0']
-                                    break
-                if best_t0 is not None:
-                    return best_t0
-            
-            # Second pass: snap to nearest segment by t0 regardless of keyword
-            closest_t0 = None
-            min_dist = float('inf')
-            for seg in transcript_segments:
-                dist = abs(seg['t0'] - target_s)
-                if dist < min_dist:
-                    min_dist = dist
-                    closest_t0 = seg['t0']
-                dist2 = abs(seg['t1'] - target_s)
-                if dist2 < min_dist:
-                    min_dist = dist2
-                    closest_t0 = seg['t0']  # Still use t0 as the anchor
-            
-            return closest_t0
 
-        def bold_replacer(match):
-            keyword = match.group(1).strip()
-            time_str = match.group(2)
-            target_s = _time_to_seconds(time_str)
-            snapped_t0 = _snap_to_nearest_segment(target_s, keyword)
-            
-            if snapped_t0 is not None:
-                styled_link = (
-                    f'<a href="#" onclick="event.preventDefault(); scrollToTime({snapped_t0});" '
-                    f'style="color: #38bdf8; text-decoration: none; font-weight: 600; border-bottom: 1px dotted rgba(56, 189, 248, 0.5); transition: all 0.2s;" '
-                    f'onmouseover="this.style.color=\'#a78bfa\'; this.style.borderBottom=\'1px solid #a78bfa\';" '
-                    f'onmouseout="this.style.color=\'#38bdf8\'; this.style.borderBottom=\'1px dotted rgba(56, 189, 248, 0.5)\';">'
-                    f'{keyword}</a>'
-                )
-                return styled_link
-            else:
-                return f'**{keyword}**'
-                
-        result = bold_pattern.sub(bold_replacer, data)
-        return result
-    else:
-        return data
+    # Build {id: t0} lookup. Fall back to enumerate order for legacy segments
+    # that predate the 'id' field.
+    id_to_t0: dict[int, float] = {}
+    for i, seg in enumerate(transcript_segments or []):
+        sid = seg.get('id', i)
+        try:
+            id_to_t0[int(sid)] = float(seg.get('t0', 0.0))
+        except (TypeError, ValueError):
+            continue
+
+    result = data
+
+    # --- Compound (chain-scoped) citations: [S42/C2] ----------------------
+    # Run first so the single-call S-ID pattern doesn't consume their inner [S42] token.
+    def _compound_lookup(sid: int, call_idx: int) -> float | None:
+        if not chain_context:
+            return None
+        segs = chain_context.get(call_idx)
+        if not segs:
+            return None
+        for i, seg in enumerate(segs):
+            seg_id = seg.get('id', i)
+            try:
+                if int(seg_id) == sid:
+                    return float(seg.get('t0', 0.0))
+            except (TypeError, ValueError):
+                continue
+        return None
+
+    def _bold_compound_sub(m: re.Match) -> str:
+        keyword = m.group(1).strip()
+        sid, call_idx = int(m.group(2)), int(m.group(3))
+        t0 = _compound_lookup(sid, call_idx)
+        if t0 is None:
+            return f'**{keyword}**'
+        return _linkify_keyword(keyword, t0)
+
+    def _bare_compound_sub(m: re.Match) -> str:
+        sid, call_idx = int(m.group(1)), int(m.group(2))
+        t0 = _compound_lookup(sid, call_idx)
+        if t0 is None:
+            return ''
+        return _linkify_arrow(t0)
+
+    result = _BOLD_COMPOUND_PATTERN.sub(_bold_compound_sub, result)
+    result = _BARE_COMPOUND_PATTERN.sub(_bare_compound_sub, result)
+
+    # --- Primary: single-call segment-ID citations ------------------------
+    def _bold_sid_sub(m: re.Match) -> str:
+        keyword = m.group(1).strip()
+        sid = int(m.group(2))
+        t0 = id_to_t0.get(sid)
+        if t0 is None:
+            return f'**{keyword}**'  # drop cite, keep bold keyword
+        return _linkify_keyword(keyword, t0)
+
+    def _bare_sid_sub(m: re.Match) -> str:
+        sid = int(m.group(1))
+        t0 = id_to_t0.get(sid)
+        if t0 is None:
+            return ''  # drop unresolved bare cite
+        return _linkify_arrow(t0)
+
+    result = _BOLD_SID_PATTERN.sub(_bold_sid_sub, result)
+    result = _BARE_SID_PATTERN.sub(_bare_sid_sub, result)
+
+    # --- Fallback: legacy MM:SS citations ----------------------------------
+    def _bold_mmss_sub(m: re.Match) -> str:
+        keyword = m.group(1).strip()
+        target_s = _time_to_seconds(m.group(2))
+        t0 = _snap_mmss_with_keyword(target_s, keyword, transcript_segments)
+        if t0 is None:
+            return f'**{keyword}**'  # drop cite, keep bold keyword
+        return _linkify_keyword(keyword, t0)
+
+    def _bare_mmss_sub(m: re.Match) -> str:
+        # No keyword to anchor on. If the target time falls inside a real
+        # segment span, we can still resolve it exactly. Otherwise leave the
+        # token in place so the frontend can make its own best-effort link.
+        target_s = _time_to_seconds(m.group(1))
+        for seg in transcript_segments or []:
+            t0 = float(seg.get('t0', 0.0))
+            t1 = float(seg.get('t1', t0))
+            if t0 <= target_s <= t1:
+                return _linkify_arrow(t0)
+        return m.group(0)  # unchanged → frontend fallback
+
+    result = _BOLD_MMSS_PATTERN.sub(_bold_mmss_sub, result)
+    result = _BARE_MMSS_PATTERN.sub(_bare_mmss_sub, result)
+
+    # Clean any double spaces left behind by dropped cites.
+    result = re.sub(r'  +', ' ', result)
+    return result
 
 
 def format_structured_summary(summary: dict) -> str:

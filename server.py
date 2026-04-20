@@ -8,7 +8,7 @@ import shutil
 from datetime import datetime
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, UploadFile, File, HTTPException
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
 import torch
@@ -19,10 +19,11 @@ from pipeline.preprocess import preprocess
 from pipeline.vad import run_vad
 from pipeline.diarize import run_diarization, intersect_vad_diar, infer_roles_linguistic
 from pipeline.transcribe import make_chunks, transcribe_chunks, load_model
-from pipeline.reconstruct import reconstruct, summarize_call_structured, format_structured_summary, correct_transcript_llm, rephrase_transcript_llm
+from pipeline.reconstruct import reconstruct, summarize_call_structured, format_structured_summary, correct_transcript_llm, rephrase_transcript_llm, verify_and_inject_inline_citations
 from pipeline.emotion import extract_acoustic_features, analyze_emotion
 from pipeline.triggers import analyze_triggers
 from pipeline.sarcasm import analyze_sarcasm
+from pipeline import chain as chain_mod
 
 # Setup logging
 logging.basicConfig(
@@ -50,8 +51,15 @@ async def queue_worker():
     logger.info("Background sequential queue worker started.")
     while True:
         try:
-            job_id, temp_path, original_filename = await audio_queue.get()
-            
+            item = await audio_queue.get()
+            # Queue items may carry an optional chain assignment.
+            # Tuple shapes supported: (job_id, temp_path, filename) or (job_id, temp_path, filename, chain_ctx)
+            if len(item) == 4:
+                job_id, temp_path, original_filename, chain_ctx = item
+            else:
+                job_id, temp_path, original_filename = item
+                chain_ctx = None
+
             # Check if job was cancelled while waiting in queue
             if jobs.get(job_id, {}).get("status") == "cancelled":
                 logger.info(f"Worker skipped cancelled job {job_id} ({original_filename})")
@@ -59,17 +67,29 @@ async def queue_worker():
                     os.remove(temp_path)
                 audio_queue.task_done()
                 continue
-                
+
             logger.info(f"Worker picked up queued job {job_id} ({original_filename})")
-            
+
             # Run the heavy blocking ML inference in a threadpool so we don't block the ASGI loop
             try:
                 await asyncio.to_thread(process_audio_task, job_id, temp_path, original_filename)
+                # After successful processing, attach to its chain if one was requested.
+                if chain_ctx and jobs.get(job_id, {}).get("status") == "completed":
+                    output_dir = jobs[job_id].get("output_dir")
+                    if output_dir:
+                        call_dir_name = os.path.basename(output_dir)
+                        try:
+                            chain_mod.append_call_to_chain(
+                                chain_ctx["chain_id"], call_dir_name, chain_ctx.get("index"),
+                            )
+                            logger.info(f"Attached job {job_id} to chain {chain_ctx['chain_id']}")
+                        except Exception as e:
+                            logger.warning(f"Failed to attach job {job_id} to chain: {e}")
             except Exception as e:
                 logger.error(f"Worker failed on job {job_id}: {e}", exc_info=True)
             finally:
                 audio_queue.task_done()
-            
+
         except asyncio.CancelledError:
             logger.info("Queue worker shutting down.")
             break
@@ -261,6 +281,9 @@ def process_audio_task(job_id: str, temp_path: str, original_filename: str):
                     emotion_analysis=emotion_analysis,
                     trigger_phrases=trigger_phrases,
                 )
+                # Resolve `[S<id>]` / legacy `[MM:SS]` citations to clickable
+                # transcript links with exact `t0` values.
+                summary_dict = verify_and_inject_inline_citations(summary_dict, transcript)
                 summary_text = format_structured_summary(summary_dict)
             except Exception as e:
                 logger.warning(f"Summarization failed: {e}")
@@ -433,7 +456,7 @@ async def get_history():
                     try:
                         with open(json_path, "r", encoding="utf-8") as f:
                             data = json.load(f)
-                            
+
                             # Fallback for old legacy JSONs missing original_filename metadata
                             filename = data.get("metadata", {}).get("original_filename")
                             if not filename or filename == "Unknown":
@@ -446,14 +469,21 @@ async def get_history():
                                     filename = f"{extracted}.mp3" if extracted else dir_name
                                 else:
                                     filename = dir_name
-                            
+
+                            # Resolve citations at read time so historical outputs (written before
+                            # the resolver was wired in) still get exact transcript links.
+                            segments = data.get("segments", [])
+                            summary = data.get("summary")
+                            if summary and isinstance(summary, dict) and "error" not in summary:
+                                summary = verify_and_inject_inline_citations(summary, segments)
+
                             history.append({
                                 "id": dir_name,
                                 "filename": filename,
                                 "duration": data.get("metadata", {}).get("duration_seconds", 0),
-                                "summary": data.get("summary", None),
+                                "summary": summary,
                                 "metadata": data.get("metadata", {}),
-                                "segments": data.get("segments", []),
+                                "segments": segments,
                                 "emotion_analysis": data.get("emotion_analysis", None),
                                 "trigger_phrases": data.get("trigger_phrases", None),
                             })
@@ -461,18 +491,59 @@ async def get_history():
                         logger.warning(f"Failed to read history {dir_name}: {e}")
     # Sort descending assuming directory names start with or contain timestamps (they do)
     history.sort(key=lambda x: x["id"], reverse=True)
-    return JSONResponse(content={"history": history})
+
+    # Group chain members under their manifest; everything else is a "single" call.
+    chain_manifests = chain_mod.list_chains()
+    manifest_by_id = {m["id"]: m for m in chain_manifests}
+    call_to_chain_id: dict[str, str] = {}
+    for m in chain_manifests:
+        for c in m["calls"]:
+            call_to_chain_id[c["dir"]] = m["id"]
+
+    chains_out: dict[str, dict] = {}
+    singles_out: list[dict] = []
+    for item in history:
+        cid = call_to_chain_id.get(item["id"])
+        if cid:
+            if cid not in chains_out:
+                m = manifest_by_id[cid]
+                chains_out[cid] = {
+                    "id": cid,
+                    "slug": m["slug"],
+                    "label": m["label"],
+                    "customer_identifier": m.get("customer_identifier"),
+                    "created_at": m.get("created_at"),
+                    "updated_at": m.get("updated_at"),
+                    "closed": m.get("closed", False),
+                    "total_calls_planned": len(m["calls"]),
+                    "member_calls": [],
+                }
+            chains_out[cid]["member_calls"].append(item)
+        else:
+            singles_out.append(item)
+
+    # Preserve chain-member order by index, not by timestamp
+    for cid, entry in chains_out.items():
+        index_by_dir = {c["dir"]: c["index"] for c in manifest_by_id[cid]["calls"]}
+        entry["member_calls"].sort(key=lambda x: index_by_dir.get(x["id"], 999))
+
+    # Flat "history" field retained for backwards compatibility with existing dashboard code
+    return JSONResponse(content={
+        "history": history,                         # legacy flat list (all calls)
+        "chains": list(chains_out.values()),        # new: grouped chains
+        "singles": singles_out,                     # new: calls not in any chain
+    })
 
 @app.delete("/api/history/{job_id}")
 async def delete_history_item(job_id: str):
     """Securely deletes a specific transcription job's output folder."""
     if not job_id or ".." in job_id or "/" in job_id:
         raise HTTPException(status_code=400, detail="Invalid job ID")
-        
+
     target_path = os.path.join(OUTPUTS_DIR, job_id)
     if not os.path.exists(target_path) or not os.path.isdir(target_path):
         raise HTTPException(status_code=404, detail="Job history not found")
-        
+
     try:
         shutil.rmtree(target_path)
         logger.info(f"Deleted historic output folder: {job_id}")
@@ -480,6 +551,134 @@ async def delete_history_item(job_id: str):
     except Exception as e:
         logger.error(f"Failed to delete history item {job_id}: {e}")
         raise HTTPException(status_code=500, detail=f"Failed to delete directory: {str(e)}")
+
+
+# ---------------------------------------------------------------------------
+# Chain endpoints (Slice 1 — call chaining infrastructure)
+# ---------------------------------------------------------------------------
+
+def _safe_chain_id(chain_id: str) -> str:
+    if not chain_id or ".." in chain_id or "/" in chain_id or "\\" in chain_id:
+        raise HTTPException(status_code=400, detail="Invalid chain ID")
+    return chain_id
+
+
+async def _enqueue_file_for_chain(
+    file: UploadFile, chain_id: str, index: int,
+) -> str:
+    """Persist upload to temp, register job, enqueue with chain context. Returns job_id."""
+    if not file.filename or not file.filename.lower().endswith((".mp3", ".wav", ".m4a", ".ogg")):
+        raise HTTPException(status_code=400, detail=f"Unsupported file extension: {file.filename}")
+    if not global_state.get("asr_model"):
+        raise HTTPException(status_code=503, detail="Models are not initialized yet.")
+
+    job_id = str(uuid.uuid4())
+    ext = os.path.splitext(file.filename)[1]
+    with tempfile.NamedTemporaryFile(delete=False, suffix=ext, mode="wb") as tmp:
+        content = await file.read()
+        tmp.write(content)
+        tmp.flush()
+        temp_path = tmp.name
+
+    jobs[job_id] = {
+        "job_id": job_id,
+        "status": "queued",
+        "progress": f"Queued (chain call {index})",
+        "original_filename": file.filename,
+        "result": None,
+        "error": None,
+        "chain_id": chain_id,
+        "chain_index": index,
+    }
+    await audio_queue.put((job_id, temp_path, file.filename, {"chain_id": chain_id, "index": index}))
+    return job_id
+
+
+@app.post("/api/chain")
+async def create_chain_endpoint(
+    label: str | None = Form(None),
+    customer_identifier: str | None = Form(None),
+    files: list[UploadFile] = File(...),
+):
+    """Create a chain and enqueue all supplied files in the order received."""
+    if not files:
+        raise HTTPException(status_code=400, detail="At least one file is required.")
+
+    manifest = chain_mod.create_chain(label=label, customer_identifier=customer_identifier)
+
+    job_ids: list[str] = []
+    for i, f in enumerate(files, start=1):
+        job_ids.append(await _enqueue_file_for_chain(f, manifest["id"], i))
+
+    logger.info(f"Created chain {manifest['id']} ({manifest['slug']}) with {len(files)} queued calls.")
+    return JSONResponse(content={
+        "chain_id": manifest["id"],
+        "slug": manifest["slug"],
+        "label": manifest["label"],
+        "call_job_ids": job_ids,
+        "message": f"Chain created with {len(files)} calls queued.",
+    })
+
+
+@app.get("/api/chain/{chain_id}")
+async def get_chain_endpoint(chain_id: str):
+    chain_id = _safe_chain_id(chain_id)
+    manifest = chain_mod.get_chain(chain_id)
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chain not found")
+
+    # Attach per-call job statuses for any jobs still tracked in memory
+    in_flight = [
+        j for j in jobs.values()
+        if j.get("chain_id") == chain_id and j.get("status") in ("queued", "processing", "failed")
+    ]
+    return JSONResponse(content={**manifest, "in_flight_jobs": in_flight})
+
+
+@app.post("/api/chain/{chain_id}/append")
+async def append_to_chain_endpoint(chain_id: str, file: UploadFile = File(...)):
+    chain_id = _safe_chain_id(chain_id)
+    manifest = chain_mod.get_chain(chain_id)
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chain not found")
+
+    next_index = len(manifest["calls"]) + 1
+    job_id = await _enqueue_file_for_chain(file, chain_id, next_index)
+    return JSONResponse(content={
+        "chain_id": chain_id,
+        "job_id": job_id,
+        "index": next_index,
+    })
+
+
+@app.post("/api/chain/{chain_id}/close")
+async def close_chain_endpoint(chain_id: str):
+    chain_id = _safe_chain_id(chain_id)
+    try:
+        return JSONResponse(content=chain_mod.close_chain(chain_id))
+    except ValueError:
+        raise HTTPException(status_code=404, detail="Chain not found")
+
+
+@app.delete("/api/chain/{chain_id}")
+async def delete_chain_endpoint(chain_id: str):
+    chain_id = _safe_chain_id(chain_id)
+    manifest = chain_mod.get_chain(chain_id)
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chain not found")
+    chain_mod.delete_chain(chain_id)
+    logger.info(f"Deleted chain {chain_id}")
+    return JSONResponse(content={"status": "success", "message": "Chain deleted; member calls preserved."})
+
+
+@app.get("/api/chain/{chain_id}/transcript")
+async def get_chain_transcript_endpoint(chain_id: str):
+    """Return the chain's combined transcript (rebuilt on demand for freshness)."""
+    chain_id = _safe_chain_id(chain_id)
+    manifest = chain_mod.get_chain(chain_id)
+    if manifest is None:
+        raise HTTPException(status_code=404, detail="Chain not found")
+    return JSONResponse(content=chain_mod.rebuild_chain_transcript(chain_id))
 
 # Mount the static directory to serve the GUI Dashboard at root
 app.mount("/", StaticFiles(directory=STATIC_DIR, html=True), name="static")

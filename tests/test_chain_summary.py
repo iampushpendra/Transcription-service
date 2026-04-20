@@ -271,3 +271,50 @@ def test_summarize_chain_empty_chain_returns_error(tmp_outputs, mock_openai):
     m = chain_mod.create_chain(label="Empty")
     out = chain_mod.summarize_chain(m["id"], _make_cfg())
     assert "error" in out
+
+
+# ----------------------------------------------------------------------------
+# Auto-trigger on close (server-side plumbing)
+# ----------------------------------------------------------------------------
+
+def test_kickoff_chain_summary_task_empty_chain(tmp_outputs, monkeypatch):
+    """Empty chains shouldn't trigger summarization."""
+    import server
+    monkeypatch.setattr(server, "chain_mod", chain_mod)  # point the module at our tmp outputs
+    m = chain_mod.create_chain(label="Empty auto")
+    out = server._kickoff_chain_summary_task(m["id"])
+    assert out == {"triggered": False, "reason": "empty_chain"}
+
+
+def test_kickoff_chain_summary_task_no_api_key(tmp_outputs, monkeypatch):
+    """No API key → skip trigger but don't fail."""
+    import server
+    monkeypatch.setattr(server, "chain_mod", chain_mod)
+    # Force global_state cfg to have no api key.
+    from pipeline.config import PipelineConfig
+    fake_cfg = PipelineConfig()
+    fake_cfg.openai_api_key = ""
+    monkeypatch.setattr(server, "global_state", {"cfg": fake_cfg})
+
+    chain_id, _ = _seed_chain(tmp_outputs, n_calls=2)
+    out = server._kickoff_chain_summary_task(chain_id)
+    assert out == {"triggered": False, "reason": "no_api_key"}
+
+
+def test_kickoff_chain_summary_task_cache_fresh(tmp_outputs, monkeypatch, mock_openai):
+    """If cache is already fresh, skip the trigger."""
+    import server
+    monkeypatch.setattr(server, "chain_mod", chain_mod)
+    # Give the kickoff a cfg with an api_key so it doesn't short-circuit on no_api_key.
+    from pipeline.config import PipelineConfig
+    fake_cfg = PipelineConfig()
+    fake_cfg.openai_api_key = "sk-test"
+    fake_cfg.summary_model = "gpt-test"
+    monkeypatch.setattr(server, "global_state", {"cfg": fake_cfg})
+
+    chain_id, _ = _seed_chain(tmp_outputs, n_calls=2)
+    # Pre-populate cache so signature matches.
+    chain_mod.summarize_chain(chain_id, _make_cfg())
+
+    out = server._kickoff_chain_summary_task(chain_id)
+    assert out == {"triggered": False, "reason": "cache_fresh"}

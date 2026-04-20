@@ -2869,6 +2869,8 @@
         // --- Chain dashboard ----------------------------------------------
         async function renderChainDashboard(chain) {
             switchView('dashboard', null);
+            window._currentChainId = chain.id;
+            window._currentChainClosed = !!chain.closed;
             document.getElementById('dash-title').textContent = (chain.label || chain.slug) + ' — Chain (' + (chain.member_calls || []).length + ' calls)';
             document.getElementById('stat-dur').textContent = (chain.member_calls || []).reduce((s, c) => s + (c.duration || 0), 0).toFixed(0) + 's';
             document.getElementById('stat-segs').textContent = (chain.member_calls || []).reduce((s, c) => s + ((c.segments || []).length), 0);
@@ -2993,8 +2995,27 @@
             if (data.generating) { genBtn.disabled = true; genBtn.textContent = 'Generating…'; }
             actions.appendChild(genBtn);
 
+            // "Close Chain" auto-triggers a summary generation server-side.
+            if (!window._currentChainClosed) {
+                const closeBtn = document.createElement('button');
+                closeBtn.textContent = 'Close Chain';
+                closeBtn.className = 'btn';
+                closeBtn.style.cssText = 'padding:6px 14px; font-size:0.85rem; background:rgba(255,255,255,0.05); color:var(--text-color); border:1px solid rgba(255,255,255,0.1);';
+                closeBtn.title = 'Marks the chain complete and auto-generates the chain summary.';
+                closeBtn.addEventListener('click', () => closeChain(chainId));
+                actions.appendChild(closeBtn);
+            } else {
+                const closedTag = document.createElement('span');
+                closedTag.style.cssText = 'font-size:0.72rem; padding:3px 8px; background:rgba(134,239,172,0.12); color:#86efac; border-radius:6px; font-weight:600;';
+                closedTag.textContent = 'CLOSED';
+                actions.appendChild(closedTag);
+            }
+
             header.appendChild(title); header.appendChild(actions);
             host.appendChild(header);
+
+            // If a generation is in-flight, auto-poll until it finishes.
+            if (data.generating) _schedulePollForSummary(chainId);
 
             if (!data.summary) {
                 const empty = document.createElement('div');
@@ -3015,6 +3036,45 @@
                 footer.textContent = 'Generated at ' + data.generated_at;
                 host.appendChild(footer);
             }
+        }
+
+        async function closeChain(chainId) {
+            if (!confirm('Close this chain? The summary will auto-generate in the background (~30–120s).')) return;
+            try {
+                const res = await fetch('/api/chain/' + encodeURIComponent(chainId) + '/close', { method: 'POST' });
+                if (!res.ok) throw new Error(await res.text());
+                const data = await res.json();
+                window._currentChainClosed = true;
+                if (data.auto_summary && data.auto_summary.triggered) {
+                    // Start polling immediately; the panel re-renders each time.
+                    _schedulePollForSummary(chainId);
+                }
+                renderChainSummaryPanel(chainId);
+            } catch (e) {
+                alert('Failed to close chain: ' + e.message);
+            }
+        }
+
+        // Polls /summary until generation completes, then re-renders.
+        function _schedulePollForSummary(chainId) {
+            if (window._chainSummaryPollTimer) clearTimeout(window._chainSummaryPollTimer);
+            const tick = async () => {
+                try {
+                    const res = await fetch('/api/chain/' + encodeURIComponent(chainId) + '/summary');
+                    const data = await res.json();
+                    // Still on the same chain view?
+                    if (window._currentChainId !== chainId) return;
+                    if (data.generating) {
+                        window._chainSummaryPollTimer = setTimeout(tick, 5000);
+                    } else {
+                        // Done (either success or failure) — refresh the panel.
+                        renderChainSummaryPanel(chainId);
+                    }
+                } catch (e) {
+                    window._chainSummaryPollTimer = setTimeout(tick, 5000);
+                }
+            };
+            window._chainSummaryPollTimer = setTimeout(tick, 4000);
         }
 
         async function triggerChainSummary(chainId) {

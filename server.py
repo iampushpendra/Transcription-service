@@ -651,13 +651,56 @@ async def append_to_chain_endpoint(chain_id: str, file: UploadFile = File(...)):
     })
 
 
+def _kickoff_chain_summary_task(chain_id: str) -> dict:
+    """
+    Fire-and-forget chain summarization. Returns a dict describing what
+    happened so the caller can surface the right UI state. Skips when:
+      - chain has no members or missing,
+      - OPENAI_API_KEY is unset,
+      - a generation is already in-flight,
+      - cache is already fresh (manifest sig matches).
+    Never raises.
+    """
+    manifest = chain_mod.get_chain(chain_id)
+    if manifest is None or not manifest.get("calls"):
+        return {"triggered": False, "reason": "empty_chain"}
+
+    cfg = global_state.get("cfg") or PipelineConfig()
+    if not cfg.openai_api_key:
+        return {"triggered": False, "reason": "no_api_key"}
+
+    if chain_id in _chain_summary_in_flight:
+        return {"triggered": False, "reason": "already_generating"}
+
+    cached = chain_mod.get_chain_summary(chain_id)
+    if not cached.get("stale"):
+        return {"triggered": False, "reason": "cache_fresh"}
+
+    async def _run():
+        _chain_summary_in_flight.add(chain_id)
+        try:
+            logger.info(f"Auto-summary starting for chain {chain_id} (triggered by close)")
+            await asyncio.to_thread(chain_mod.summarize_chain, chain_id, cfg)
+            logger.info(f"Auto-summary complete for chain {chain_id}")
+        except Exception as e:
+            logger.error(f"Auto-summary failed for chain {chain_id}: {e}", exc_info=True)
+        finally:
+            _chain_summary_in_flight.discard(chain_id)
+
+    asyncio.create_task(_run())
+    return {"triggered": True, "reason": "started"}
+
+
 @app.post("/api/chain/{chain_id}/close")
 async def close_chain_endpoint(chain_id: str):
     chain_id = _safe_chain_id(chain_id)
     try:
-        return JSONResponse(content=chain_mod.close_chain(chain_id))
+        manifest = chain_mod.close_chain(chain_id)
     except ValueError:
         raise HTTPException(status_code=404, detail="Chain not found")
+
+    auto = _kickoff_chain_summary_task(chain_id)
+    return JSONResponse(content={**manifest, "auto_summary": auto})
 
 
 @app.delete("/api/chain/{chain_id}")

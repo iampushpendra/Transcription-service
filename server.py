@@ -8,9 +8,12 @@ import shutil
 from datetime import datetime
 from contextlib import asynccontextmanager
 
-from fastapi import FastAPI, UploadFile, File, Form, HTTPException
+import secrets
+
+from fastapi import FastAPI, UploadFile, File, Form, HTTPException, Request, Depends
 from fastapi.responses import JSONResponse
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.sessions import SessionMiddleware
 import torch
 import uvicorn
 
@@ -24,6 +27,7 @@ from pipeline.emotion import extract_acoustic_features, analyze_emotion
 from pipeline.triggers import analyze_triggers
 from pipeline.sarcasm import analyze_sarcasm
 from pipeline import chain as chain_mod
+from pipeline import auth as auth_mod
 
 # Setup logging
 logging.basicConfig(
@@ -147,6 +151,78 @@ app = FastAPI(
     description="Production backend for audio transcription with Background Tasks",
     version="1.1.0",
     lifespan=lifespan
+)
+
+# --- Session / auth setup ---------------------------------------------------
+_SESSION_SECRET = os.environ.get("SESSION_SECRET_KEY")
+if not _SESSION_SECRET:
+    _SESSION_SECRET = secrets.token_urlsafe(32)
+    logger.warning(
+        "SESSION_SECRET_KEY not set — using an ephemeral random key. "
+        "Sessions will reset on server restart. Set SESSION_SECRET_KEY in your environment for persistence."
+    )
+
+# Endpoints that don't require auth.
+_PUBLIC_PATHS = {
+    "/api/auth/signup",
+    "/api/auth/login",
+    "/api/auth/logout",
+    "/api/auth/me",
+    "/api/auth/teams",
+}
+
+
+def get_current_user(request: Request) -> dict:
+    """FastAPI dependency — returns the current user or raises 401."""
+    uid = request.session.get("user_id")
+    if not uid:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    u = auth_mod.get_user_by_id(uid)
+    if u is None:
+        request.session.clear()
+        raise HTTPException(status_code=401, detail="Session expired")
+    return u
+
+
+def get_optional_user(request: Request) -> dict | None:
+    """Like get_current_user but returns None instead of raising."""
+    try:
+        uid = request.session.get("user_id")
+    except Exception:
+        return None
+    if not uid:
+        return None
+    return auth_mod.get_user_by_id(uid)
+
+
+# IMPORTANT: middlewares execute in reverse-of-add order. We add the auth gate
+# FIRST so it runs AFTER SessionMiddleware (which is added below). This makes
+# request.session available when the gate runs.
+@app.middleware("http")
+async def _api_auth_gate(request: Request, call_next):
+    """Gate all /api/* routes behind auth once at least one user exists."""
+    path = request.url.path
+    if path.startswith("/api/") and path not in _PUBLIC_PATHS:
+        if auth_mod.user_exists():
+            try:
+                uid = request.session.get("user_id")
+            except Exception:
+                uid = None
+            if not uid or auth_mod.get_user_by_id(uid) is None:
+                return JSONResponse(
+                    status_code=401,
+                    content={"detail": "Not authenticated"},
+                )
+    return await call_next(request)
+
+
+app.add_middleware(
+    SessionMiddleware,
+    secret_key=_SESSION_SECRET,
+    session_cookie="ts_session",
+    max_age=14 * 24 * 3600,  # 14 days
+    same_site="lax",
+    https_only=False,
 )
 
 
@@ -294,6 +370,7 @@ def process_audio_task(job_id: str, temp_path: str, original_filename: str):
             speaker_label = s.get("role", s.get("speaker", "unknown")).upper()
             dialogue.append(f"{speaker_label} [{s['t0']:.1f}s - {s['t1']:.1f}s]: {s['text']}")
 
+        owner_user_id = jobs[job_id].get("owner_user_id")
         output_data = {
             "metadata": {
                 "duration_seconds": duration,
@@ -306,6 +383,8 @@ def process_audio_task(job_id: str, temp_path: str, original_filename: str):
             "segments": transcript,
             "dialogue": dialogue,
         }
+        if owner_user_id:
+            output_data["owner_user_id"] = owner_user_id
         
         # Append NEW keys only — backward compatible
         if emotion_analysis is not None:
@@ -354,18 +433,19 @@ def process_audio_task(job_id: str, temp_path: str, original_filename: str):
 
 
 @app.post("/api/transcribe")
-async def transcribe_endpoint(file: UploadFile = File(...)):
+async def transcribe_endpoint(request: Request, file: UploadFile = File(...)):
     """
     Ingest audio and add it to the sequential task queue.
     """
     if not file.filename.endswith((".mp3", ".wav", ".m4a", ".ogg")):
         raise HTTPException(status_code=400, detail="Unsupported file extension format.")
-        
+
     if not global_state.get("asr_model"):
         raise HTTPException(status_code=503, detail="Models are not initialized yet.")
 
+    current_user = get_optional_user(request)
     job_id = str(uuid.uuid4())
-    
+
     # Save audio temporarily
     ext = os.path.splitext(file.filename)[1]
     with tempfile.NamedTemporaryFile(delete=False, suffix=ext, mode="wb") as tmp:
@@ -376,7 +456,7 @@ async def transcribe_endpoint(file: UploadFile = File(...)):
             temp_path = tmp.name
         except Exception as e:
             raise HTTPException(status_code=500, detail=f"Failed to write uploaded file: {e}")
-            
+
     # Initialize job tracking
     jobs[job_id] = {
         "job_id": job_id,
@@ -384,9 +464,10 @@ async def transcribe_endpoint(file: UploadFile = File(...)):
         "progress": "Queued in position",
         "original_filename": file.filename,
         "result": None,
-        "error": None
+        "error": None,
+        "owner_user_id": current_user["id"] if current_user else None,
     }
-    
+
     # Add to sequential asyncio queue
     await audio_queue.put((job_id, temp_path, file.filename))
     
@@ -443,8 +524,67 @@ async def cancel_job(job_id: str):
     return JSONResponse(content={"status": job["status"]})
 
 
+# ---------------------------------------------------------------------------
+# Auth endpoints
+# ---------------------------------------------------------------------------
+
+@app.post("/api/auth/signup")
+async def auth_signup_endpoint(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="JSON body required")
+    try:
+        user = auth_mod.signup(
+            username=body.get("username", ""),
+            name=body.get("name", ""),
+            team=body.get("team", ""),
+            password=body.get("password", ""),
+        )
+    except auth_mod.SignupError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    request.session["user_id"] = user["id"]
+    return JSONResponse(content={"user": user, "message": "Account created."})
+
+
+@app.post("/api/auth/login")
+async def auth_login_endpoint(request: Request):
+    try:
+        body = await request.json()
+    except Exception:
+        raise HTTPException(status_code=400, detail="JSON body required")
+    user = auth_mod.verify_credentials(body.get("username", ""), body.get("password", ""))
+    if user is None:
+        raise HTTPException(status_code=401, detail="Invalid username or password.")
+    request.session["user_id"] = user["id"]
+    return JSONResponse(content={"user": user})
+
+
+@app.post("/api/auth/logout")
+async def auth_logout_endpoint(request: Request):
+    request.session.clear()
+    return JSONResponse(content={"message": "Logged out."})
+
+
+@app.get("/api/auth/me")
+async def auth_me_endpoint(request: Request):
+    uid = request.session.get("user_id")
+    if not uid:
+        raise HTTPException(status_code=401, detail="Not authenticated")
+    user = auth_mod.get_user_by_id(uid)
+    if user is None:
+        request.session.clear()
+        raise HTTPException(status_code=401, detail="Session expired")
+    return JSONResponse(content={"user": user})
+
+
+@app.get("/api/auth/teams")
+async def auth_teams_endpoint():
+    return JSONResponse(content={"teams": auth_mod.list_teams()})
+
+
 @app.get("/api/history")
-async def get_history():
+async def get_history(request: Request):
     """Scan the outputs directory and return a list of past transcriptions."""
     history = []
     if os.path.exists(OUTPUTS_DIR):
@@ -486,6 +626,7 @@ async def get_history():
                                 "segments": segments,
                                 "emotion_analysis": data.get("emotion_analysis", None),
                                 "trigger_phrases": data.get("trigger_phrases", None),
+                                "owner_user_id": data.get("owner_user_id"),
                             })
                     except Exception as e:
                         logger.warning(f"Failed to read history {dir_name}: {e}")
@@ -512,6 +653,7 @@ async def get_history():
                     "slug": m["slug"],
                     "label": m["label"],
                     "customer_identifier": m.get("customer_identifier"),
+                    "owner_user_id": m.get("owner_user_id"),
                     "created_at": m.get("created_at"),
                     "updated_at": m.get("updated_at"),
                     "closed": m.get("closed", False),
@@ -527,11 +669,32 @@ async def get_history():
         index_by_dir = {c["dir"]: c["index"] for c in manifest_by_id[cid]["calls"]}
         entry["member_calls"].sort(key=lambda x: index_by_dir.get(x["id"], 999))
 
+    # Partition by ownership for the current user. Unowned items (legacy) surface
+    # as a shared archive visible to everyone.
+    current_user = get_optional_user(request)
+    uid = current_user["id"] if current_user else None
+
+    my_chains, legacy_chains = [], []
+    for c in chains_out.values():
+        (my_chains if uid and c.get("owner_user_id") == uid
+         else legacy_chains if not c.get("owner_user_id")
+         else []).append(c)
+
+    my_singles, legacy_singles = [], []
+    for s in singles_out:
+        (my_singles if uid and s.get("owner_user_id") == uid
+         else legacy_singles if not s.get("owner_user_id")
+         else []).append(s)
+
     # Flat "history" field retained for backwards compatibility with existing dashboard code
     return JSONResponse(content={
         "history": history,                         # legacy flat list (all calls)
-        "chains": list(chains_out.values()),        # new: grouped chains
-        "singles": singles_out,                     # new: calls not in any chain
+        "chains": list(chains_out.values()),        # legacy (all chains)
+        "singles": singles_out,                     # legacy (all singles)
+        "my_chains": my_chains,
+        "my_singles": my_singles,
+        "legacy_chains": legacy_chains,
+        "legacy_singles": legacy_singles,
     })
 
 @app.delete("/api/history/{job_id}")
@@ -564,7 +727,7 @@ def _safe_chain_id(chain_id: str) -> str:
 
 
 async def _enqueue_file_for_chain(
-    file: UploadFile, chain_id: str, index: int,
+    file: UploadFile, chain_id: str, index: int, owner_user_id: str | None = None,
 ) -> str:
     """Persist upload to temp, register job, enqueue with chain context. Returns job_id."""
     if not file.filename or not file.filename.lower().endswith((".mp3", ".wav", ".m4a", ".ogg")):
@@ -589,6 +752,7 @@ async def _enqueue_file_for_chain(
         "error": None,
         "chain_id": chain_id,
         "chain_index": index,
+        "owner_user_id": owner_user_id,
     }
     await audio_queue.put((job_id, temp_path, file.filename, {"chain_id": chain_id, "index": index}))
     return job_id
@@ -596,6 +760,7 @@ async def _enqueue_file_for_chain(
 
 @app.post("/api/chain")
 async def create_chain_endpoint(
+    request: Request,
     label: str | None = Form(None),
     customer_identifier: str | None = Form(None),
     files: list[UploadFile] = File(...),
@@ -604,11 +769,18 @@ async def create_chain_endpoint(
     if not files:
         raise HTTPException(status_code=400, detail="At least one file is required.")
 
-    manifest = chain_mod.create_chain(label=label, customer_identifier=customer_identifier)
+    current_user = get_optional_user(request)
+    owner_user_id = current_user["id"] if current_user else None
+
+    manifest = chain_mod.create_chain(
+        label=label,
+        customer_identifier=customer_identifier,
+        owner_user_id=owner_user_id,
+    )
 
     job_ids: list[str] = []
     for i, f in enumerate(files, start=1):
-        job_ids.append(await _enqueue_file_for_chain(f, manifest["id"], i))
+        job_ids.append(await _enqueue_file_for_chain(f, manifest["id"], i, owner_user_id))
 
     logger.info(f"Created chain {manifest['id']} ({manifest['slug']}) with {len(files)} queued calls.")
     return JSONResponse(content={

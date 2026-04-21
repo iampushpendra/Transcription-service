@@ -1401,6 +1401,43 @@
     })();
 </script>
 
+<!-- Auth overlay: covers the viewport when no session exists -->
+<div id="auth-overlay" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(12,15,20,0.96); align-items:center; justify-content:center; padding:20px; overflow-y:auto;">
+    <div style="width:100%; max-width:420px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:16px; padding:28px;">
+        <div style="text-align:center; margin-bottom:22px;">
+            <div style="font-family:Outfit,sans-serif; font-size:1.4rem; font-weight:700; margin-bottom:4px;">FREED AI · Transcription</div>
+            <div style="color:var(--text-muted); font-size:0.9rem;">Sign in or create an account to continue.</div>
+        </div>
+        <div style="display:flex; gap:6px; padding:4px; background:rgba(0,0,0,0.25); border-radius:10px; margin-bottom:18px;">
+            <button id="auth-tab-login" onclick="setAuthMode('login')" style="flex:1; padding:9px 12px; border:none; background:var(--primary); color:#fff; border-radius:7px; cursor:pointer; font-weight:600; font-size:0.85rem;">Log In</button>
+            <button id="auth-tab-signup" onclick="setAuthMode('signup')" style="flex:1; padding:9px 12px; border:none; background:transparent; color:var(--text-muted); border-radius:7px; cursor:pointer; font-weight:600; font-size:0.85rem;">Sign Up</button>
+        </div>
+        <form id="auth-form" onsubmit="event.preventDefault(); submitAuthForm();" style="display:flex; flex-direction:column; gap:10px;">
+            <div id="auth-field-name" style="display:none; flex-direction:column; gap:4px;">
+                <label style="color:var(--text-muted); font-size:0.8rem;">Full name</label>
+                <input id="auth-input-name" type="text" maxlength="80" placeholder="e.g. Alice Sharma"
+                       style="padding:10px 12px; background:rgba(0,0,0,0.3); border:1px solid var(--border-color); border-radius:8px; color:var(--text-color); font-family:inherit; font-size:0.9rem;">
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <label style="color:var(--text-muted); font-size:0.8rem;">Username</label>
+                <input id="auth-input-username" type="text" maxlength="40" autocomplete="username" placeholder="alice"
+                       style="padding:10px 12px; background:rgba(0,0,0,0.3); border:1px solid var(--border-color); border-radius:8px; color:var(--text-color); font-family:inherit; font-size:0.9rem;">
+            </div>
+            <div id="auth-field-team" style="display:none; flex-direction:column; gap:4px;">
+                <label style="color:var(--text-muted); font-size:0.8rem;">Team</label>
+                <select id="auth-input-team" style="padding:10px 12px; background:rgba(0,0,0,0.3); border:1px solid var(--border-color); border-radius:8px; color:var(--text-color); font-family:inherit; font-size:0.9rem;"></select>
+            </div>
+            <div style="display:flex; flex-direction:column; gap:4px;">
+                <label style="color:var(--text-muted); font-size:0.8rem;">Password <span id="auth-pw-hint" style="color:var(--text-muted);"></span></label>
+                <input id="auth-input-password" type="password" maxlength="128" autocomplete="current-password" placeholder="••••••••"
+                       style="padding:10px 12px; background:rgba(0,0,0,0.3); border:1px solid var(--border-color); border-radius:8px; color:var(--text-color); font-family:inherit; font-size:0.9rem;">
+            </div>
+            <div id="auth-error" style="display:none; color:#fca5a5; font-size:0.85rem; padding:8px 10px; background:rgba(252,165,165,0.08); border-radius:6px;"></div>
+            <button id="auth-submit" type="submit" class="btn" style="margin-top:6px; width:100%;">Log In</button>
+        </form>
+    </div>
+</div>
+
     <div class="app-shell">
         <!-- Sidebar -->
         <div class="sidebar" id="sidebar">
@@ -1633,13 +1670,41 @@
 
         <!-- View 2: History (Existing) -->
         <div id="view-history" class="view-section">
-            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 30px;">
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;">
                 <h2 class="section-title" style="margin-bottom: 0;">Transcription History</h2>
                 <button class="btn btn-secondary" onclick="loadHistoryGrid()">Refresh</button>
+            </div>
+            <!-- Filter + sort controls -->
+            <div style="display: flex; flex-wrap: wrap; gap: 14px; align-items: center; margin-bottom: 20px; padding: 10px 14px; background: var(--bg-surface); border: 1px solid var(--border-color); border-radius: 10px;">
+                <div style="display:flex; gap:6px; padding:4px; background:rgba(0,0,0,0.25); border-radius:8px;">
+                    <button id="hist-tab-all" onclick="setHistoryTab('all')" style="padding:6px 14px; border:none; background:var(--primary); color:#fff; border-radius:6px; cursor:pointer; font-weight:600; font-size:0.85rem;">All</button>
+                    <button id="hist-tab-singles" onclick="setHistoryTab('singles')" style="padding:6px 14px; border:none; background:transparent; color:var(--text-muted); border-radius:6px; cursor:pointer; font-weight:600; font-size:0.85rem;">Single Calls</button>
+                    <button id="hist-tab-chains" onclick="setHistoryTab('chains')" style="padding:6px 14px; border:none; background:transparent; color:var(--text-muted); border-radius:6px; cursor:pointer; font-weight:600; font-size:0.85rem;">Chains</button>
+                </div>
+                <div style="display:flex; gap:8px; align-items:center;">
+                    <label for="hist-sort" style="color:var(--text-muted); font-size:0.85rem;">Sort by</label>
+                    <select id="hist-sort" onchange="setHistorySort(this.value)" style="padding:6px 10px; background:rgba(0,0,0,0.3); border:1px solid var(--border-color); border-radius:6px; color:var(--text-color); font-size:0.85rem; font-family:inherit;">
+                        <option value="date_desc">Date added (newest)</option>
+                        <option value="date_asc">Date added (oldest)</option>
+                        <option value="duration_desc">Duration (longest)</option>
+                        <option value="duration_asc">Duration (shortest)</option>
+                        <option value="name_asc">Filename (A → Z)</option>
+                        <option value="name_desc">Filename (Z → A)</option>
+                        <option value="calls_desc">Chain size (most calls)</option>
+                    </select>
+                </div>
             </div>
             <div id="history-loading" style="color: var(--text-muted); text-align: center; padding: 40px;">Fetching past
                 jobs...</div>
             <div class="history-grid" id="history-grid"></div>
+            <!-- Shared / legacy archive (unowned items) -->
+            <div id="history-archive-wrap" style="display:none; margin-top:32px;">
+                <button id="history-archive-toggle" onclick="toggleHistoryArchive()" style="width:100%; text-align:left; padding:12px 16px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:10px; color:var(--text-color); cursor:pointer; display:flex; justify-content:space-between; align-items:center; font-family:inherit; font-size:0.95rem;">
+                    <span><span id="history-archive-caret">▸</span> Shared archive <span id="history-archive-count" style="color:var(--text-muted); font-weight:normal;"></span></span>
+                    <span style="font-size:0.75rem; color:var(--text-muted); font-weight:400;">Pre-auth legacy calls, visible to everyone</span>
+                </button>
+                <div id="history-archive-grid" class="history-grid" style="display:none; margin-top:14px;"></div>
+            </div>
         </div>
 
         <!-- View 3: Dashboard Results (Existing) -->
@@ -2162,6 +2227,141 @@
                 document.getElementById('overview-loading').textContent = 'Failed to load metrics: ' + e.message;
             }
         }
+
+        // --- Auth (self-signup overlay) -------------------------------------
+        window._authMode = 'login';
+        window._currentUser = null;
+
+        async function bootAuth() {
+            try {
+                const res = await fetch('/api/auth/me');
+                if (res.ok) {
+                    const d = await res.json();
+                    window._currentUser = d.user;
+                    hideAuthOverlay();
+                    renderUserBadge();
+                    return;
+                }
+            } catch (e) { /* fall through to overlay */ }
+            showAuthOverlay();
+        }
+
+        function showAuthOverlay() {
+            document.getElementById('auth-overlay').style.display = 'flex';
+            setAuthMode(window._authMode || 'login');
+            // Populate teams for signup
+            fetch('/api/auth/teams').then(r => r.json()).then(d => {
+                const sel = document.getElementById('auth-input-team');
+                while (sel.firstChild) sel.removeChild(sel.firstChild);
+                (d.teams || []).forEach(t => {
+                    const opt = document.createElement('option');
+                    opt.value = t; opt.textContent = t;
+                    sel.appendChild(opt);
+                });
+            }).catch(() => {});
+        }
+
+        function hideAuthOverlay() {
+            document.getElementById('auth-overlay').style.display = 'none';
+        }
+
+        function setAuthMode(mode) {
+            window._authMode = mode;
+            const loginBtn = document.getElementById('auth-tab-login');
+            const signupBtn = document.getElementById('auth-tab-signup');
+            const nameRow = document.getElementById('auth-field-name');
+            const teamRow = document.getElementById('auth-field-team');
+            const submit = document.getElementById('auth-submit');
+            const hint = document.getElementById('auth-pw-hint');
+            if (mode === 'signup') {
+                signupBtn.style.background = 'var(--primary)'; signupBtn.style.color = '#fff';
+                loginBtn.style.background = 'transparent'; loginBtn.style.color = 'var(--text-muted)';
+                nameRow.style.display = 'flex'; teamRow.style.display = 'flex';
+                submit.textContent = 'Create Account';
+                hint.textContent = '(min 6 characters)';
+            } else {
+                loginBtn.style.background = 'var(--primary)'; loginBtn.style.color = '#fff';
+                signupBtn.style.background = 'transparent'; signupBtn.style.color = 'var(--text-muted)';
+                nameRow.style.display = 'none'; teamRow.style.display = 'none';
+                submit.textContent = 'Log In';
+                hint.textContent = '';
+            }
+            document.getElementById('auth-error').style.display = 'none';
+        }
+
+        async function submitAuthForm() {
+            const errBox = document.getElementById('auth-error');
+            errBox.style.display = 'none';
+            const submit = document.getElementById('auth-submit');
+            submit.disabled = true;
+
+            const username = document.getElementById('auth-input-username').value.trim();
+            const password = document.getElementById('auth-input-password').value;
+            const name = document.getElementById('auth-input-name').value.trim();
+            const team = document.getElementById('auth-input-team').value;
+
+            const isSignup = window._authMode === 'signup';
+            const path = isSignup ? '/api/auth/signup' : '/api/auth/login';
+            const body = isSignup ? { username, name, team, password } : { username, password };
+
+            try {
+                const res = await fetch(path, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify(body),
+                });
+                if (!res.ok) {
+                    const err = await res.json().catch(() => ({ detail: 'Request failed' }));
+                    throw new Error(err.detail || 'Request failed');
+                }
+                const data = await res.json();
+                window._currentUser = data.user;
+                hideAuthOverlay();
+                renderUserBadge();
+                // Refresh any data view that depends on auth.
+                if (typeof loadHistoryGrid === 'function') loadHistoryGrid();
+            } catch (e) {
+                errBox.textContent = e.message;
+                errBox.style.display = 'block';
+            } finally {
+                submit.disabled = false;
+            }
+        }
+
+        async function logout() {
+            try { await fetch('/api/auth/logout', { method: 'POST' }); } catch (e) {}
+            window._currentUser = null;
+            renderUserBadge();
+            showAuthOverlay();
+        }
+
+        function renderUserBadge() {
+            let badge = document.getElementById('user-badge');
+            if (!badge) {
+                badge = document.createElement('div');
+                badge.id = 'user-badge';
+                badge.style.cssText = 'position:fixed; top:14px; right:18px; z-index:500; display:flex; align-items:center; gap:10px; padding:8px 14px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:24px; font-size:0.85rem; box-shadow:0 4px 16px rgba(0,0,0,0.25);';
+                document.body.appendChild(badge);
+            }
+            while (badge.firstChild) badge.removeChild(badge.firstChild);
+            if (!window._currentUser) { badge.style.display = 'none'; return; }
+            badge.style.display = 'flex';
+
+            const dot = document.createElement('span');
+            dot.style.cssText = 'width:8px; height:8px; border-radius:50%; background:#86efac;';
+            const label = document.createElement('span');
+            label.textContent = window._currentUser.name + ' · ' + window._currentUser.team;
+            label.style.cssText = 'font-weight:600;';
+            const logoutBtn = document.createElement('button');
+            logoutBtn.textContent = 'Log out';
+            logoutBtn.style.cssText = 'background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.8rem; padding:0;';
+            logoutBtn.addEventListener('click', logout);
+
+            badge.appendChild(dot); badge.appendChild(label); badge.appendChild(logoutBtn);
+        }
+
+        // Kick off auth check before anything else renders.
+        bootAuth();
 
         // --- Upload & Polling ---
         const dropZone = document.getElementById('drop-zone');
@@ -2832,35 +3032,126 @@
             return card;
         }
 
-        async function loadHistoryGrid() {
+        // History filter + sort state (persisted in sessionStorage).
+        window._historyTab = sessionStorage.getItem('historyTab') || 'all';
+        window._historySort = sessionStorage.getItem('historySort') || 'date_desc';
+
+        function setHistoryTab(tab) {
+            window._historyTab = tab;
+            sessionStorage.setItem('historyTab', tab);
+            ['all', 'singles', 'chains'].forEach(t => {
+                const btn = document.getElementById('hist-tab-' + t);
+                if (!btn) return;
+                if (t === tab) { btn.style.background = 'var(--primary)'; btn.style.color = '#fff'; }
+                else { btn.style.background = 'transparent'; btn.style.color = 'var(--text-muted)'; }
+            });
+            _renderHistory();
+        }
+
+        function setHistorySort(sort) {
+            window._historySort = sort;
+            sessionStorage.setItem('historySort', sort);
+            _renderHistory();
+        }
+
+        function _sortSingles(list) {
+            const arr = list.slice();
+            const key = window._historySort;
+            const dateOf = x => x.id || '';
+            const nameOf = x => (x.filename || x.id || '').toLowerCase();
+            const durOf  = x => Number(x.duration || 0);
+            if (key === 'date_desc') arr.sort((a, b) => dateOf(b).localeCompare(dateOf(a)));
+            else if (key === 'date_asc') arr.sort((a, b) => dateOf(a).localeCompare(dateOf(b)));
+            else if (key === 'duration_desc') arr.sort((a, b) => durOf(b) - durOf(a));
+            else if (key === 'duration_asc') arr.sort((a, b) => durOf(a) - durOf(b));
+            else if (key === 'name_asc') arr.sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
+            else if (key === 'name_desc') arr.sort((a, b) => nameOf(b).localeCompare(nameOf(a)));
+            else if (key === 'calls_desc') arr.sort((a, b) => dateOf(b).localeCompare(dateOf(a))); // no-op for singles
+            return arr;
+        }
+
+        function _sortChains(list) {
+            const arr = list.slice();
+            const key = window._historySort;
+            const createdOf = x => x.created_at || '';
+            const nameOf = x => (x.label || x.slug || '').toLowerCase();
+            const totalDurOf = x => (x.member_calls || []).reduce((s, c) => s + (c.duration || 0), 0);
+            const sizeOf = x => (x.member_calls || []).length;
+            if (key === 'date_desc') arr.sort((a, b) => createdOf(b).localeCompare(createdOf(a)));
+            else if (key === 'date_asc') arr.sort((a, b) => createdOf(a).localeCompare(createdOf(b)));
+            else if (key === 'duration_desc') arr.sort((a, b) => totalDurOf(b) - totalDurOf(a));
+            else if (key === 'duration_asc') arr.sort((a, b) => totalDurOf(a) - totalDurOf(b));
+            else if (key === 'name_asc') arr.sort((a, b) => nameOf(a).localeCompare(nameOf(b)));
+            else if (key === 'name_desc') arr.sort((a, b) => nameOf(b).localeCompare(nameOf(a)));
+            else if (key === 'calls_desc') arr.sort((a, b) => sizeOf(b) - sizeOf(a));
+            return arr;
+        }
+
+        function _renderHistory() {
             const grid = document.getElementById('history-grid');
-            const loader = document.getElementById('history-loading');
+            const archiveWrap = document.getElementById('history-archive-wrap');
+            const archiveGrid = document.getElementById('history-archive-grid');
+            const archiveCount = document.getElementById('history-archive-count');
             while (grid.firstChild) grid.removeChild(grid.firstChild);
+            while (archiveGrid.firstChild) archiveGrid.removeChild(archiveGrid.firstChild);
+
+            const myChains = _sortChains(window._chainsCache || []);
+            const mySingles = _sortSingles(window._singlesCache || []);
+            const legacyChains = _sortChains(window._legacyChainsCache || []);
+            const legacySingles = _sortSingles(window._legacySinglesCache || []);
+
+            const showChains = window._historyTab !== 'singles';
+            const showSingles = window._historyTab !== 'chains';
+
+            if (showChains) myChains.forEach((c, i) => grid.appendChild(_buildChainCard(c, i)));
+            if (showSingles) mySingles.forEach((j, i) => grid.appendChild(_buildSingleCard(j, '_singlesCache', i)));
+
+            if (!grid.firstChild) {
+                const empty = document.createElement('div');
+                empty.style.cssText = 'color:var(--text-muted); grid-column:1/-1; padding:30px; text-align:center;';
+                empty.textContent = 'No items in this view yet.';
+                grid.appendChild(empty);
+            }
+
+            // Shared archive (legacy — unowned items). Visible to all users.
+            const legacyCount = (showChains ? legacyChains.length : 0) + (showSingles ? legacySingles.length : 0);
+            if (legacyCount > 0) {
+                archiveWrap.style.display = 'block';
+                archiveCount.textContent = '· ' + legacyCount + ' item' + (legacyCount === 1 ? '' : 's');
+                if (showChains) legacyChains.forEach((c, i) => archiveGrid.appendChild(_buildChainCard(c, i)));
+                if (showSingles) legacySingles.forEach((j, i) => archiveGrid.appendChild(_buildSingleCard(j, '_legacySinglesCache', i)));
+            } else {
+                archiveWrap.style.display = 'none';
+            }
+        }
+
+        function toggleHistoryArchive() {
+            const g = document.getElementById('history-archive-grid');
+            const caret = document.getElementById('history-archive-caret');
+            const open = g.style.display !== 'none' && g.style.display !== '';
+            if (open) { g.style.display = 'none'; caret.textContent = '▸'; }
+            else { g.style.display = 'grid'; caret.textContent = '▾'; }
+        }
+
+        async function loadHistoryGrid() {
+            const loader = document.getElementById('history-loading');
             loader.style.display = 'block';
 
             try {
                 const res = await fetch('/api/history');
+                if (res.status === 401) { loader.style.display = 'none'; return; }
                 const data = await res.json();
                 loader.style.display = 'none';
                 window._historyCache = data.history || [];
-                window._chainsCache = data.chains || [];
-                window._singlesCache = data.singles || data.history || [];
+                window._chainsCache = data.my_chains || data.chains || [];
+                window._singlesCache = data.my_singles || data.singles || [];
+                window._legacyChainsCache = data.legacy_chains || [];
+                window._legacySinglesCache = data.legacy_singles || [];
 
-                if (window._chainsCache.length === 0 && window._singlesCache.length === 0) {
-                    const empty = document.createElement('div');
-                    empty.style.cssText = 'color:var(--text-muted); grid-column:1/-1;';
-                    empty.textContent = 'No past transcriptions found.';
-                    grid.appendChild(empty);
-                    return;
-                }
-
-                // Chains first (top-of-mind), then singles.
-                window._chainsCache.forEach((chain, idx) => {
-                    grid.appendChild(_buildChainCard(chain, idx));
-                });
-                window._singlesCache.forEach((job, idx) => {
-                    grid.appendChild(_buildSingleCard(job, '_singlesCache', idx));
-                });
+                // Sync UI controls with persisted state.
+                const sortEl = document.getElementById('hist-sort');
+                if (sortEl) sortEl.value = window._historySort;
+                setHistoryTab(window._historyTab);
             } catch (e) {
                 loader.textContent = 'Failed to load history.';
             }

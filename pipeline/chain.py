@@ -123,7 +123,11 @@ def _clear_chain_block(call_dir: str) -> None:
 # Public API
 # -----------------------------------------------------------------------------
 
-def create_chain(label: str | None = None, customer_identifier: str | None = None) -> dict:
+def create_chain(
+    label: str | None = None,
+    customer_identifier: str | None = None,
+    owner_user_id: str | None = None,
+) -> dict:
     """Create a new empty chain manifest. Returns the manifest dict."""
     chain_id = str(uuid.uuid4())
     slug = _slugify(label) or _slugify(customer_identifier) or f"chain-{chain_id[:8]}"
@@ -132,6 +136,7 @@ def create_chain(label: str | None = None, customer_identifier: str | None = Non
         "slug": slug,
         "label": label,
         "customer_identifier": customer_identifier,
+        "owner_user_id": owner_user_id,
         "created_at": _now_iso(),
         "updated_at": _now_iso(),
         "closed": False,

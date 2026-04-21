@@ -284,6 +284,82 @@
 
         .theme-toggle:hover { color: var(--text); background: var(--border); }
 
+        /* Sidebar-footer theme toggle — matches .nav-item styling */
+        .sidebar-theme-toggle {
+            margin-top: 8px;
+            background: transparent;
+            border: 1px solid var(--border);
+            border-radius: 8px;
+            cursor: pointer;
+            color: var(--text-muted);
+            padding: 10px 14px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+            transition: color 150ms, background 150ms, border-color 150ms;
+            font-family: inherit;
+            font-size: 0.9rem;
+            width: 100%;
+            text-align: left;
+        }
+        .sidebar-theme-toggle:hover {
+            color: var(--text);
+            background: var(--surface-2);
+            border-color: rgba(91, 174, 224, 0.25);
+        }
+        .sidebar-theme-toggle .theme-toggle-label {
+            opacity: 1;
+            white-space: nowrap;
+            transition: opacity 150ms ease;
+        }
+        body.sidebar-collapsed .sidebar-theme-toggle {
+            padding: 10px;
+            justify-content: center;
+        }
+        body.sidebar-collapsed .sidebar-theme-toggle .theme-toggle-label {
+            opacity: 0;
+            width: 0;
+            overflow: hidden;
+        }
+
+        /* Inline user badge inside top-bar (replaces fixed-position floating badge) */
+        .top-bar-user-badge {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            padding: 6px 14px;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 999px;
+            font-size: 0.85rem;
+            max-width: 360px;
+        }
+        .top-bar-user-badge .user-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--success, #86efac);
+            flex-shrink: 0;
+        }
+        .top-bar-user-badge .user-name {
+            font-weight: 600;
+            color: var(--text);
+            white-space: nowrap;
+            overflow: hidden;
+            text-overflow: ellipsis;
+        }
+        .top-bar-user-badge .user-logout {
+            background: none;
+            border: none;
+            color: var(--text-muted);
+            cursor: pointer;
+            font-size: 0.8rem;
+            padding: 2px 4px;
+            font-family: inherit;
+            white-space: nowrap;
+        }
+        .top-bar-user-badge .user-logout:hover { color: var(--text); }
+
         h2.section-title {
             font-family: 'Inter', sans-serif;
             font-weight: 600;
@@ -331,6 +407,8 @@
             gap: 6px;
             cursor: pointer;
             transition: border-color 200ms ease, box-shadow 200ms ease;
+            overflow: hidden;
+            min-width: 0;
         }
 
         .kpi-card:hover {
@@ -353,10 +431,14 @@
         }
 
         .kpi-val {
-            font-size: 1.75rem;
+            font-size: clamp(1.1rem, 2.4vw, 1.75rem);
             font-weight: 700;
             color: var(--primary);
-            line-height: 1.1;
+            line-height: 1.15;
+            min-width: 0;
+            overflow-wrap: anywhere;
+            word-break: break-word;
+            font-variant-numeric: tabular-nums;
         }
 
         .charts-container {
@@ -1388,6 +1470,260 @@
         canvas {
             filter: drop-shadow(0px 10px 15px rgba(0, 0, 0, 0.5));
         }
+
+        /* ============================================================
+           AUTH OVERLAY
+           ============================================================ */
+        .auth-overlay {
+            display: none;
+            position: fixed;
+            inset: 0;
+            z-index: 9999;
+            align-items: center;
+            justify-content: center;
+            padding: 24px;
+            overflow-y: auto;
+            background: radial-gradient(circle at 20% 15%, rgba(91, 174, 224, 0.18), transparent 50%),
+                        radial-gradient(circle at 85% 85%, rgba(241, 137, 70, 0.14), transparent 55%),
+                        var(--bg, #0a0f14);
+        }
+        body:not(.dark) .auth-overlay {
+            background: radial-gradient(circle at 20% 15%, rgba(2, 65, 110, 0.07), transparent 50%),
+                        radial-gradient(circle at 85% 85%, rgba(241, 137, 70, 0.06), transparent 55%),
+                        var(--bg, #f8fafc);
+        }
+        .auth-bg-decor {
+            position: absolute;
+            inset: 0;
+            pointer-events: none;
+            background-image:
+                linear-gradient(var(--border) 1px, transparent 1px),
+                linear-gradient(90deg, var(--border) 1px, transparent 1px);
+            background-size: 48px 48px;
+            opacity: 0.06;
+            mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+            -webkit-mask-image: radial-gradient(ellipse at center, black 30%, transparent 80%);
+        }
+
+        .auth-card {
+            position: relative;
+            z-index: 1;
+            width: 100%;
+            max-width: 920px;
+            display: grid;
+            grid-template-columns: 1.15fr 1fr;
+            background: var(--surface);
+            border: 1px solid var(--border);
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 20px 60px rgba(0, 0, 0, 0.35);
+        }
+
+        @media (max-width: 760px) {
+            .auth-card { grid-template-columns: 1fr; max-width: 440px; }
+            .auth-brand-pane { padding: 28px 28px 20px; }
+            .auth-brand-features { display: none; }
+        }
+
+        /* Left: brand pane */
+        .auth-brand-pane {
+            position: relative;
+            padding: 40px 40px 36px;
+            background:
+                radial-gradient(circle at 100% 0%, rgba(241, 137, 70, 0.18), transparent 55%),
+                linear-gradient(160deg, rgba(2, 65, 110, 0.22) 0%, rgba(91, 174, 224, 0.06) 100%);
+            border-right: 1px solid var(--border);
+            display: flex;
+            flex-direction: column;
+            gap: 18px;
+        }
+        body:not(.dark) .auth-brand-pane {
+            background:
+                radial-gradient(circle at 100% 0%, rgba(241, 137, 70, 0.10), transparent 55%),
+                linear-gradient(160deg, rgba(2, 65, 110, 0.08) 0%, rgba(91, 174, 224, 0.04) 100%);
+        }
+        .auth-logo {
+            display: flex;
+            align-items: center;
+            gap: 10px;
+            color: var(--accent, #f18946);
+            font-weight: 800;
+            font-size: 1.05rem;
+            letter-spacing: -0.02em;
+        }
+        .auth-brand-title {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.65rem;
+            line-height: 1.25;
+            font-weight: 700;
+            color: var(--text);
+            margin: 4px 0 0;
+            letter-spacing: -0.015em;
+        }
+        .auth-brand-sub {
+            color: var(--text-muted);
+            font-size: 0.92rem;
+            line-height: 1.5;
+            margin: 0;
+        }
+        .auth-brand-features {
+            list-style: none;
+            padding: 0;
+            margin: 12px 0 0;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        .auth-brand-features li {
+            display: flex;
+            gap: 10px;
+            align-items: baseline;
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            line-height: 1.45;
+        }
+        .auth-brand-features li span {
+            color: var(--accent, #f18946);
+            font-size: 0.6rem;
+            flex-shrink: 0;
+        }
+
+        /* Right: form pane */
+        .auth-form-pane {
+            padding: 40px 40px 36px;
+            display: flex;
+            flex-direction: column;
+            gap: 16px;
+        }
+        .auth-tabs {
+            display: flex;
+            gap: 4px;
+            padding: 4px;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 10px;
+            margin-bottom: 8px;
+        }
+        .auth-tab {
+            flex: 1;
+            padding: 8px 14px;
+            background: transparent;
+            border: none;
+            border-radius: 7px;
+            cursor: pointer;
+            color: var(--text-muted);
+            font-family: inherit;
+            font-weight: 600;
+            font-size: 0.85rem;
+            transition: background 150ms ease, color 150ms ease, box-shadow 150ms ease;
+        }
+        .auth-tab.active {
+            background: var(--surface);
+            color: var(--text);
+            box-shadow: 0 1px 3px rgba(0, 0, 0, 0.18);
+        }
+        .auth-form-title {
+            font-family: 'Inter', sans-serif;
+            font-size: 1.2rem;
+            font-weight: 700;
+            color: var(--text);
+            margin-top: 4px;
+        }
+        .auth-form-sub {
+            color: var(--text-muted);
+            font-size: 0.85rem;
+            margin-top: -6px;
+        }
+        .auth-form {
+            display: flex;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .auth-field {
+            display: flex;
+            flex-direction: column;
+            gap: 6px;
+        }
+        .auth-field label {
+            font-size: 0.78rem;
+            font-weight: 500;
+            color: var(--text-muted);
+            letter-spacing: 0.02em;
+        }
+        .auth-field input,
+        .auth-field select {
+            padding: 11px 13px;
+            background: var(--surface-2);
+            border: 1px solid var(--border);
+            border-radius: 9px;
+            color: var(--text);
+            font-family: inherit;
+            font-size: 0.92rem;
+            transition: border-color 150ms ease, box-shadow 150ms ease, background 150ms ease;
+            appearance: none;
+        }
+        .auth-field input::placeholder { color: var(--text-muted); opacity: 0.6; }
+        .auth-field input:focus,
+        .auth-field select:focus {
+            outline: none;
+            border-color: var(--accent, #f18946);
+            box-shadow: 0 0 0 3px rgba(241, 137, 70, 0.15);
+            background: var(--surface);
+        }
+        .auth-hint {
+            color: var(--text-muted);
+            font-weight: 400;
+            font-size: 0.72rem;
+            margin-left: 6px;
+        }
+        .auth-password-wrap {
+            position: relative;
+        }
+        .auth-password-wrap input { width: 100%; padding-right: 40px; }
+        .auth-password-toggle {
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            background: transparent;
+            border: none;
+            cursor: pointer;
+            color: var(--text-muted);
+            padding: 6px;
+            border-radius: 6px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }
+        .auth-password-toggle:hover { color: var(--text); background: var(--surface-2); }
+        .auth-error {
+            color: #fca5a5;
+            background: rgba(252, 165, 165, 0.10);
+            border: 1px solid rgba(252, 165, 165, 0.22);
+            border-radius: 8px;
+            padding: 9px 12px;
+            font-size: 0.84rem;
+        }
+        .auth-submit {
+            margin-top: 6px;
+            padding: 12px 18px;
+            background: var(--accent, #f18946);
+            color: #fff;
+            border: none;
+            border-radius: 10px;
+            cursor: pointer;
+            font-family: inherit;
+            font-weight: 600;
+            font-size: 0.92rem;
+            transition: background 150ms ease, box-shadow 150ms ease, transform 100ms ease;
+            box-shadow: 0 4px 14px rgba(241, 137, 70, 0.25);
+        }
+        .auth-submit:hover {
+            background: color-mix(in oklab, var(--accent, #f18946) 92%, black);
+            box-shadow: 0 6px 18px rgba(241, 137, 70, 0.35);
+        }
+        .auth-submit:active { transform: translateY(1px); }
+        .auth-submit:disabled { opacity: 0.6; cursor: not-allowed; transform: none; }
     </style>
 </head>
 
@@ -1402,39 +1738,66 @@
 </script>
 
 <!-- Auth overlay: covers the viewport when no session exists -->
-<div id="auth-overlay" style="display:none; position:fixed; inset:0; z-index:9999; background:rgba(12,15,20,0.96); align-items:center; justify-content:center; padding:20px; overflow-y:auto;">
-    <div style="width:100%; max-width:420px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:16px; padding:28px;">
-        <div style="text-align:center; margin-bottom:22px;">
-            <div style="font-family:Outfit,sans-serif; font-size:1.4rem; font-weight:700; margin-bottom:4px;">FREED AI · Transcription</div>
-            <div style="color:var(--text-muted); font-size:0.9rem;">Sign in or create an account to continue.</div>
+<div id="auth-overlay" class="auth-overlay">
+    <div class="auth-bg-decor"></div>
+
+    <div class="auth-card">
+        <!-- Left panel: brand -->
+        <div class="auth-brand-pane">
+            <div class="auth-logo">
+                <svg width="22" height="22" viewBox="0 0 24 24" fill="currentColor" style="flex-shrink:0">
+                    <path d="M22 2L11 13M22 2L15 22l-4-9-9-4 20-7z"/>
+                </svg>
+                <span>FREED AI</span>
+            </div>
+            <h1 class="auth-brand-title">Transcription workspace for India's first debt-relief platform.</h1>
+            <p class="auth-brand-sub">Sign in to see your calls. What you transcribe is scoped to your account — teammates can't see your work unless you share it.</p>
+            <ul class="auth-brand-features">
+                <li><span>◆</span> Hinglish-first transcription with exact insight → transcript jumps</li>
+                <li><span>◆</span> Chain multiple calls into one customer journey analysis</li>
+                <li><span>◆</span> Acoustic emotion, objection tracking, audit-ready summaries</li>
+            </ul>
         </div>
-        <div style="display:flex; gap:6px; padding:4px; background:rgba(0,0,0,0.25); border-radius:10px; margin-bottom:18px;">
-            <button id="auth-tab-login" onclick="setAuthMode('login')" style="flex:1; padding:9px 12px; border:none; background:var(--primary); color:#fff; border-radius:7px; cursor:pointer; font-weight:600; font-size:0.85rem;">Log In</button>
-            <button id="auth-tab-signup" onclick="setAuthMode('signup')" style="flex:1; padding:9px 12px; border:none; background:transparent; color:var(--text-muted); border-radius:7px; cursor:pointer; font-weight:600; font-size:0.85rem;">Sign Up</button>
+
+        <!-- Right panel: form -->
+        <div class="auth-form-pane">
+            <div class="auth-tabs">
+                <button id="auth-tab-login" type="button" onclick="setAuthMode('login')" class="auth-tab active">Log In</button>
+                <button id="auth-tab-signup" type="button" onclick="setAuthMode('signup')" class="auth-tab">Sign Up</button>
+            </div>
+
+            <div id="auth-form-title" class="auth-form-title">Welcome back</div>
+            <div id="auth-form-sub" class="auth-form-sub">Continue where you left off.</div>
+
+            <form id="auth-form" onsubmit="event.preventDefault(); submitAuthForm();" class="auth-form">
+                <div id="auth-field-name" class="auth-field" style="display:none;">
+                    <label for="auth-input-name">Full name</label>
+                    <input id="auth-input-name" type="text" maxlength="80" placeholder="Your name" autocomplete="name">
+                </div>
+                <div class="auth-field">
+                    <label for="auth-input-username">Username</label>
+                    <input id="auth-input-username" type="text" maxlength="40" autocomplete="username" placeholder="alice" spellcheck="false">
+                </div>
+                <div id="auth-field-team" class="auth-field" style="display:none;">
+                    <label for="auth-input-team">Team</label>
+                    <select id="auth-input-team"></select>
+                </div>
+                <div class="auth-field">
+                    <label for="auth-input-password">Password <span id="auth-pw-hint" class="auth-hint"></span></label>
+                    <div class="auth-password-wrap">
+                        <input id="auth-input-password" type="password" maxlength="128" autocomplete="current-password" placeholder="••••••••">
+                        <button type="button" class="auth-password-toggle" onclick="togglePasswordVisibility()" aria-label="Show password">
+                            <svg width="16" height="16" fill="none" stroke="currentColor" viewBox="0 0 24 24" id="auth-eye-icon">
+                                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                                <circle cx="12" cy="12" r="3" stroke-width="2"/>
+                            </svg>
+                        </button>
+                    </div>
+                </div>
+                <div id="auth-error" class="auth-error" style="display:none;"></div>
+                <button id="auth-submit" type="submit" class="auth-submit">Log In</button>
+            </form>
         </div>
-        <form id="auth-form" onsubmit="event.preventDefault(); submitAuthForm();" style="display:flex; flex-direction:column; gap:10px;">
-            <div id="auth-field-name" style="display:none; flex-direction:column; gap:4px;">
-                <label style="color:var(--text-muted); font-size:0.8rem;">Full name</label>
-                <input id="auth-input-name" type="text" maxlength="80" placeholder="e.g. Alice Sharma"
-                       style="padding:10px 12px; background:rgba(0,0,0,0.3); border:1px solid var(--border-color); border-radius:8px; color:var(--text-color); font-family:inherit; font-size:0.9rem;">
-            </div>
-            <div style="display:flex; flex-direction:column; gap:4px;">
-                <label style="color:var(--text-muted); font-size:0.8rem;">Username</label>
-                <input id="auth-input-username" type="text" maxlength="40" autocomplete="username" placeholder="alice"
-                       style="padding:10px 12px; background:rgba(0,0,0,0.3); border:1px solid var(--border-color); border-radius:8px; color:var(--text-color); font-family:inherit; font-size:0.9rem;">
-            </div>
-            <div id="auth-field-team" style="display:none; flex-direction:column; gap:4px;">
-                <label style="color:var(--text-muted); font-size:0.8rem;">Team</label>
-                <select id="auth-input-team" style="padding:10px 12px; background:rgba(0,0,0,0.3); border:1px solid var(--border-color); border-radius:8px; color:var(--text-color); font-family:inherit; font-size:0.9rem;"></select>
-            </div>
-            <div style="display:flex; flex-direction:column; gap:4px;">
-                <label style="color:var(--text-muted); font-size:0.8rem;">Password <span id="auth-pw-hint" style="color:var(--text-muted);"></span></label>
-                <input id="auth-input-password" type="password" maxlength="128" autocomplete="current-password" placeholder="••••••••"
-                       style="padding:10px 12px; background:rgba(0,0,0,0.3); border:1px solid var(--border-color); border-radius:8px; color:var(--text-color); font-family:inherit; font-size:0.9rem;">
-            </div>
-            <div id="auth-error" style="display:none; color:#fca5a5; font-size:0.85rem; padding:8px 10px; background:rgba(252,165,165,0.08); border-radius:6px;"></div>
-            <button id="auth-submit" type="submit" class="btn" style="margin-top:6px; width:100%;">Log In</button>
-        </form>
     </div>
 </div>
 
@@ -1477,20 +1840,24 @@
             </svg>
             <span>Job History</span>
         </div>
+        <!-- Sidebar footer: theme toggle (pushed to bottom with flex:auto spacer) -->
+        <div style="flex:1 1 auto;"></div>
+        <button class="sidebar-theme-toggle" id="theme-toggle" title="Toggle theme" onclick="toggleTheme()">
+            <svg class="icon-sun" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="flex-shrink:0;">
+                <circle cx="12" cy="12" r="5"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
+            </svg>
+            <svg class="icon-moon" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display:none; flex-shrink:0;">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
+            </svg>
+            <span class="theme-toggle-label">Toggle theme</span>
+        </button>
         </div>
         <!-- Content Wrapper (top bar + main content) -->
         <div class="content-wrapper">
             <!-- Top Bar -->
             <div class="top-bar">
                 <span class="top-bar-title" id="top-bar-title">Global Analytics</span>
-                <button class="theme-toggle" id="theme-toggle" title="Toggle theme" onclick="toggleTheme()">
-                    <svg class="icon-sun" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                        <circle cx="12" cy="12" r="5"/><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/>
-                    </svg>
-                    <svg class="icon-moon" width="18" height="18" fill="none" stroke="currentColor" viewBox="0 0 24 24" style="display:none">
-                        <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 12.79A9 9 0 1111.21 3 7 7 0 0021 12.79z"/>
-                    </svg>
-                </button>
+                <div id="top-bar-user" style="display:flex; align-items:center;"></div>
             </div>
             <!-- Main Content -->
             <div class="main-content">
@@ -2273,20 +2640,41 @@
             const teamRow = document.getElementById('auth-field-team');
             const submit = document.getElementById('auth-submit');
             const hint = document.getElementById('auth-pw-hint');
+            const title = document.getElementById('auth-form-title');
+            const sub = document.getElementById('auth-form-sub');
+            const pwField = document.getElementById('auth-input-password');
+
             if (mode === 'signup') {
-                signupBtn.style.background = 'var(--primary)'; signupBtn.style.color = '#fff';
-                loginBtn.style.background = 'transparent'; loginBtn.style.color = 'var(--text-muted)';
+                signupBtn.classList.add('active'); loginBtn.classList.remove('active');
                 nameRow.style.display = 'flex'; teamRow.style.display = 'flex';
                 submit.textContent = 'Create Account';
                 hint.textContent = '(min 6 characters)';
+                title.textContent = 'Create your account';
+                sub.textContent = 'Private by default — only you see what you transcribe.';
+                pwField.setAttribute('autocomplete', 'new-password');
             } else {
-                loginBtn.style.background = 'var(--primary)'; loginBtn.style.color = '#fff';
-                signupBtn.style.background = 'transparent'; signupBtn.style.color = 'var(--text-muted)';
+                loginBtn.classList.add('active'); signupBtn.classList.remove('active');
                 nameRow.style.display = 'none'; teamRow.style.display = 'none';
                 submit.textContent = 'Log In';
                 hint.textContent = '';
+                title.textContent = 'Welcome back';
+                sub.textContent = 'Continue where you left off.';
+                pwField.setAttribute('autocomplete', 'current-password');
             }
             document.getElementById('auth-error').style.display = 'none';
+        }
+
+        function togglePasswordVisibility() {
+            const input = document.getElementById('auth-input-password');
+            const icon = document.getElementById('auth-eye-icon');
+            if (input.type === 'password') {
+                input.type = 'text';
+                // Swap to "eye off"
+                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M17.94 17.94A10.07 10.07 0 0112 20c-7 0-11-8-11-8a18.45 18.45 0 015.06-5.94M9.9 4.24A9.12 9.12 0 0112 4c7 0 11 8 11 8a18.5 18.5 0 01-2.16 3.19m-6.72-1.07a3 3 0 11-4.24-4.24"/><line stroke-width="2" stroke-linecap="round" x1="1" y1="1" x2="23" y2="23"/>';
+            } else {
+                input.type = 'password';
+                icon.innerHTML = '<path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/><circle cx="12" cy="12" r="3" stroke-width="2"/>';
+            }
         }
 
         async function submitAuthForm() {
@@ -2336,28 +2724,28 @@
         }
 
         function renderUserBadge() {
-            let badge = document.getElementById('user-badge');
-            if (!badge) {
-                badge = document.createElement('div');
-                badge.id = 'user-badge';
-                badge.style.cssText = 'position:fixed; top:14px; right:18px; z-index:500; display:flex; align-items:center; gap:10px; padding:8px 14px; background:var(--bg-surface); border:1px solid var(--border-color); border-radius:24px; font-size:0.85rem; box-shadow:0 4px 16px rgba(0,0,0,0.25);';
-                document.body.appendChild(badge);
-            }
-            while (badge.firstChild) badge.removeChild(badge.firstChild);
-            if (!window._currentUser) { badge.style.display = 'none'; return; }
-            badge.style.display = 'flex';
+            // Remove any stale fixed-position badge from older sessions.
+            const stale = document.getElementById('user-badge');
+            if (stale) stale.remove();
 
-            const dot = document.createElement('span');
-            dot.style.cssText = 'width:8px; height:8px; border-radius:50%; background:#86efac;';
-            const label = document.createElement('span');
+            const host = document.getElementById('top-bar-user');
+            if (!host) return;
+            while (host.firstChild) host.removeChild(host.firstChild);
+            if (!window._currentUser) return;
+
+            const badge = document.createElement('div');
+            badge.className = 'top-bar-user-badge';
+
+            const dot = document.createElement('span'); dot.className = 'user-dot';
+            const label = document.createElement('span'); label.className = 'user-name';
             label.textContent = window._currentUser.name + ' · ' + window._currentUser.team;
-            label.style.cssText = 'font-weight:600;';
             const logoutBtn = document.createElement('button');
+            logoutBtn.className = 'user-logout';
             logoutBtn.textContent = 'Log out';
-            logoutBtn.style.cssText = 'background:none; border:none; color:var(--text-muted); cursor:pointer; font-size:0.8rem; padding:0;';
             logoutBtn.addEventListener('click', logout);
 
             badge.appendChild(dot); badge.appendChild(label); badge.appendChild(logoutBtn);
+            host.appendChild(badge);
         }
 
         // Kick off auth check before anything else renders.

@@ -34,7 +34,7 @@ _PROJECT_ROOT = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
 USERS_FILE: str = os.path.join(_PROJECT_ROOT, "outputs", "__users__", "users.json")
 
 # Fixed team choices. Edit here to add/remove teams.
-TEAMS: list[str] = ["Sales", "Audit", "Quality", "Operations", "Management"]
+TEAMS: list[str] = ["Sales", "Auditing", "Product"]
 
 MIN_PASSWORD_LEN = 6
 MAX_PASSWORD_LEN = 128

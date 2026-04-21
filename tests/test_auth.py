@@ -66,6 +66,11 @@ def test_signup_validates_team(tmp_users):
         auth.signup(username="alice", name="A", team="NotARealTeam", password="abc123")
 
 
+def test_signup_accepts_each_configured_team(tmp_users):
+    for i, t in enumerate(auth.list_teams()):
+        auth.signup(username=f"u{i}", name="X", team=t, password="abc123")
+
+
 # ---- Login -----------------------------------------------------------------
 
 def test_verify_credentials_happy_path(tmp_users):

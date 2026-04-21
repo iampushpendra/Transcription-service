@@ -30,6 +30,7 @@ from pipeline.reconstruct import (
     summarize_call_structured,
     format_transcript_preview,
     format_structured_summary,
+    verify_and_inject_inline_citations,
 )
 from pipeline.utils import fmt
 
@@ -120,7 +121,8 @@ def main():
         if not args.no_summary:
             extractive = summarize_customer(transcript, duration)
             structured = summarize_call_structured(transcript, cfg)
-            
+            structured = verify_and_inject_inline_citations(structured, transcript)
+
             with open(summary_txt_path, "w", encoding="utf-8") as fs:
                 fs.write(f"Customer Extraction Stats:\n- Words: {extractive.get('customer_words', 0)}\n- Segments: {extractive.get('customer_segments', 0)}\n\n")
                 fs.write("EXTRACTIVE SUMMARY:\n")
@@ -258,6 +260,7 @@ def main():
     if not args.no_summary:
         extractive = summarize_customer(transcript, duration)
         structured = summarize_call_structured(transcript, cfg)
+        structured = verify_and_inject_inline_citations(structured, transcript)
         with open(summary_txt_path, "w", encoding="utf-8") as fs:
             fs.write(f"Customer Extraction Stats:\n- Words: {extractive.get('customer_words', 0)}\n- Segments: {extractive.get('customer_segments', 0)}\n\n")
             fs.write("EXTRACTIVE SUMMARY:\n")
